@@ -35,7 +35,6 @@ export function RootClient() {
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyVersion, setHistoryVersion] = useState<number>(0);
   const [saving, setSaving] = useState<boolean>(false);
-  const savingRef = useRef<boolean>(false);
   const [entryMode, setEntryMode] = useState<"loading" | "session" | "library">(
     "loading",
   );
@@ -48,6 +47,8 @@ export function RootClient() {
   const [notionStatusLoading, setNotionStatusLoading] = useState<boolean>(true);
   const [notionConnected, setNotionConnected] = useState<boolean>(false);
   const [dbConnected, setDbConnected] = useState<boolean>(false);
+
+  const savingRef = useRef<boolean>(false);
 
   useTimerTick(!!sessionMetadata);
 
@@ -642,6 +643,7 @@ export function RootClient() {
   }
 
   function changeTargetMainSetCount(exIdx: number, delta: number) {
+    markHistoryDirty();
     setExercises((prev) =>
       prev.map((ex, i) => {
         if (i !== exIdx) return ex;
@@ -695,6 +697,7 @@ export function RootClient() {
   }
 
   function changeTargetWarmupSetCount(exIdx: number, delta: number) {
+    markHistoryDirty();
     setExercises((prev) =>
       prev.map((ex, i) => {
         if (i !== exIdx) return ex;
@@ -748,6 +751,7 @@ export function RootClient() {
   }
 
   function addExercisesToSession(newExercises: Exercises) {
+    markHistoryDirty();
     setExercises((prev) => {
       const existingPageIds = new Set(
         prev.map((ex) => ex.exercisePageId).filter(Boolean),
