@@ -56,6 +56,12 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   dumbbell: "덤벨",
 };
 
+function parseRepsInput(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  return Number(trimmed);
+}
+
 function getCompletedMainSetCount(exercise: Exercise): number {
   return exercise.sets.filter(
     (set) => (set.setType ?? "main") === "main" && set.done,
@@ -223,10 +229,11 @@ export function WorkoutSessionClient({
           const isActive = openAccordionIndex === i;
           const currentSetIndex = ex.sets.findIndex((set) => !set.done);
           const allSetsDone = ex.sets.length > 0 && currentSetIndex === -1;
+          const currentSetIdx = allSetsDone
+            ? ex.sets.length - 1
+            : currentSetIndex;
           const currentSet =
-            ex.sets.length === 0
-              ? null
-              : ex.sets[allSetsDone ? ex.sets.length - 1 : currentSetIndex];
+            ex.sets.length === 0 ? null : ex.sets[currentSetIdx];
           const currentDisplay = currentSet
             ? displayWeightUnit(currentSet.weight, currentSet.unit)
             : null;
@@ -306,21 +313,60 @@ export function WorkoutSessionClient({
                 <AccordionContent className="pb-3">
                   <div className="mb-4 grid grid-cols-[1.3fr_1fr_1fr] items-end border-b border-border pb-4">
                     <div className="min-w-0 pr-2">
-                      <div
+                      <InlineNumberField
+                        value={
+                          currentDisplay
+                            ? String(currentDisplay.displayWeight)
+                            : "—"
+                        }
+                        inputMode="decimal"
+                        disabled={!currentSet}
+                        ariaLabel="현재 세트 무게"
                         className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
+                        onCommit={(draft) => {
+                          if (!currentSet) return;
+                          const kg = convertInputToKg(draft, currentSet.unit);
+                          if (kg === null) return;
+                          changeWeight(i, currentSetIdx, kg);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        disabled={!currentSet}
+                        aria-label="무게 단위 전환"
+                        className="-mb-2 block w-full py-2 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
+                        onClick={() => {
+                          if (!currentSet) return;
+                          changeUnit(
+                            i,
+                            currentSetIdx,
+                            currentSet.unit === "kg" ? "lb" : "kg",
+                          );
+                        }}
                       >
-                        {currentDisplay ? currentDisplay.displayWeight : "—"}
-                      </div>
-                      <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                        {currentDisplay?.displayUnit ?? "kg"}
-                      </div>
+                        <span className="underline decoration-dotted underline-offset-4">
+                          {currentDisplay?.displayUnit ?? "kg"}
+                        </span>
+                      </button>
                     </div>
                     <div className="min-w-0 border-l border-border px-2">
-                      <div
+                      <InlineNumberField
+                        value={currentSet ? String(currentSet.reps) : "—"}
+                        inputMode="numeric"
+                        disabled={!currentSet}
+                        ariaLabel="현재 세트 횟수"
                         className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
-                      >
-                        {currentSet ? currentSet.reps : "—"}
-                      </div>
+                        onCommit={(draft) => {
+                          if (!currentSet) return;
+                          const nextReps = parseRepsInput(draft);
+                          if (nextReps === null) return;
+                          changeReps(
+                            i,
+                            currentSetIdx,
+                            nextReps - currentSet.reps,
+                          );
+                        }}
+                      />
                       <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
                         reps
                       </div>
@@ -488,6 +534,77 @@ export function WorkoutSessionClient({
         </>
       )}
     </main>
+  );
+}
+
+function InlineNumberField({
+  value,
+  inputMode,
+  disabled = false,
+  ariaLabel,
+  className,
+  onCommit,
+}: {
+  value: string;
+  inputMode: "decimal" | "numeric";
+  disabled?: boolean;
+  ariaLabel: string;
+  className: string;
+  onCommit: (draft: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const cancelledRef = useRef(false);
+
+  function beginEdit() {
+    cancelledRef.current = false;
+    setDraft(value);
+    setIsEditing(true);
+  }
+
+  function commitEdit() {
+    setIsEditing(false);
+    if (cancelledRef.current) return;
+    if (draft.trim() === value) return;
+    onCommit(draft);
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        type="text"
+        inputMode={inputMode}
+        aria-label={ariaLabel}
+        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-accent) bg-transparent p-0 outline-none`}
+        value={draft}
+        onChange={(e) => setDraft(e.currentTarget.value)}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancelledRef.current = true;
+            e.currentTarget.blur();
+          }
+        }}
+        onBlur={commitEdit}
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={`${className} block w-full truncate text-left`}
+      onClick={beginEdit}
+    >
+      {value}
+    </button>
   );
 }
 
