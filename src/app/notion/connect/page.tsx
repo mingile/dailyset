@@ -22,6 +22,11 @@ import {
   type NotionConnectStatusSnapshot,
 } from "@/lib/notion-connect-ui-status";
 
+const PRIMARY_BUTTON =
+  "inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
+const SECONDARY_BUTTON =
+  "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+
 export default function NotionConnectPage() {
   const [handoffId, setHandoffId] = useState<string | null>(null);
   const [handoffLaunched, setHandoffLaunched] = useState(false);
@@ -182,10 +187,18 @@ export default function NotionConnectPage() {
     (uiStatus === "starting" || uiStatus === "handoff_started");
 
   return (
-    <div className="mx-auto max-w-lg p-6">
-      <div className="space-y-6 rounded-xl border bg-card p-6 shadow-sm">
-        <div>
-          <h1 className="text-2xl font-semibold">{copy.title}</h1>
+    <div className="session-surface session-font min-h-screen">
+      <div className="mx-auto max-w-lg space-y-6 px-4 pb-10">
+        <div className="flex min-h-14 items-center">
+          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
+            <span className="size-2 rounded-full bg-(--session-accent)" />
+            <span>daily</span>
+            <span className="text-(--session-muted)">set</span>
+          </span>
+        </div>
+
+        <div className="border-b border-foreground pb-4">
+          <h1 className="text-2xl font-bold tracking-tight">{copy.title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {copy.description}
           </p>
@@ -193,10 +206,7 @@ export default function NotionConnectPage() {
 
         {uiStatus === "notion_authorized" && (
           <div className="space-y-3">
-            <a
-              href={getSafariSettingsUrl()}
-              className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-            >
+            <a href={getSafariSettingsUrl()} className={PRIMARY_BUTTON}>
               Safari에서 DB 선택하기
             </a>
             <p className="text-xs text-muted-foreground">
@@ -207,23 +217,20 @@ export default function NotionConnectPage() {
 
         {(uiStatus === "handoff_started" || showSafariFallback) &&
           safariAuthUrl && (
-            <div className="space-y-3 rounded-lg border border-muted bg-muted/30 p-4 text-sm">
+            <div className="space-y-3 border-l-2 border-(--session-accent) pl-3 text-sm">
               <p className="font-medium text-foreground">
                 {uiStatus === "handoff_started"
                   ? "Safari에서 연결을 이어가세요"
                   : "Safari가 자동으로 열리지 않나요?"}
               </p>
               <div className="flex flex-col gap-2">
-                <a
-                  href={safariAuthUrl}
-                  className="inline-flex rounded-md border bg-background px-4 py-2 text-sm font-medium"
-                >
+                <a href={safariAuthUrl} className={SECONDARY_BUTTON}>
                   Safari에서 다시 열기
                 </a>
                 <button
                   type="button"
                   onClick={handleCopyAuthUrl}
-                  className="inline-flex rounded-md border bg-background px-4 py-2 text-sm font-medium"
+                  className={SECONDARY_BUTTON}
                 >
                   연결 주소 복사
                 </button>
@@ -256,7 +263,7 @@ export default function NotionConnectPage() {
                 type="button"
                 onClick={handleRetry}
                 disabled={retryLoading}
-                className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className={PRIMARY_BUTTON}
               >
                 {retryLoading
                   ? "다시 준비 중..."
@@ -265,20 +272,14 @@ export default function NotionConnectPage() {
                     : "처음부터 다시 연결"}
               </button>
             )}
-            <Link
-              href={"/settings/notion"}
-              className="inline-flex rounded-md border px-4 py-2 text-sm font-medium"
-            >
+            <Link href={"/settings/notion"} className={SECONDARY_BUTTON}>
               Notion 설정으로
             </Link>
           </div>
         )}
 
         {uiStatus === "connected" && (
-          <Link
-            href={"/app"}
-            className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          >
+          <Link href={"/app"} className={PRIMARY_BUTTON}>
             Dailyset 홈으로
           </Link>
         )}

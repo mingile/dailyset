@@ -1,10 +1,52 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { withBasePath } from "@/lib/base-path";
 import { shouldUseSafariHandoffFlow } from "@/lib/is-standalone-pwa";
 import { startNotionConnect } from "@/lib/notion-connect-session";
+
+const TEXT_BUTTON =
+  "inline-flex h-11 min-w-11 items-center justify-center px-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+const PRIMARY_BUTTON =
+  "inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
+const SECONDARY_BUTTON =
+  "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
+const FIELD_LABEL =
+  "block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground";
+const FIELD_SELECT =
+  "h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none focus-visible:border-b-2";
+
+function NotionPageShell({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="session-surface session-font min-h-screen">
+      <div className="mx-auto max-w-3xl px-4 pb-10">
+        <div className="flex min-h-14 items-center justify-between">
+          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
+            <span className="size-2 rounded-full bg-(--session-accent)" />
+            <span>daily</span>
+            <span className="text-(--session-muted)">set</span>
+          </span>
+          <div className="flex items-center">{actions}</div>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        <div className="mt-4 border-b border-foreground" />
+        {children}
+      </div>
+    </div>
+  );
+}
 
 type DatabaseOption = {
   id: string;
@@ -46,7 +88,9 @@ export default function NotionSettingsPage({
       await startNotionConnect();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Notion 연결을 시작할 수 없습니다.";
+        err instanceof Error
+          ? err.message
+          : "Notion 연결을 시작할 수 없습니다.";
       setConnectError(message);
     } finally {
       setConnectLoading(false);
@@ -166,224 +210,197 @@ export default function NotionSettingsPage({
 
   if (!notionConnected) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
-        <div className="space-y-6">
-          <div className="rounded-xl border bg-card p-6 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold">Notion 연결</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  먼저 Notion OAuth 연결을 완료해야 데이터베이스를 선택할 수
-                  있습니다.
-                </p>
-              </div>
-
-              <Link
-                href="/app"
-                className="rounded-md border px-4 py-2 text-sm font-medium"
-              >
-                홈으로
-              </Link>
-            </div>
+      <NotionPageShell
+        title="Notion 연결"
+        description="먼저 Notion OAuth 연결을 완료해야 데이터베이스를 선택할 수 있습니다."
+        actions={
+          <Link href="/app" className={TEXT_BUTTON}>
+            홈으로
+          </Link>
+        }
+      >
+        <div className="space-y-4 border-b border-border py-6">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">
+              1단계. Notion 계정 연결
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              아래 버튼을 눌러 Notion 계정을 연결한 뒤 다시 돌아오세요.
+            </p>
           </div>
 
-          <div className="rounded-xl border bg-card p-6 shadow-sm space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">1단계. Notion 계정 연결</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                아래 버튼을 눌러 Notion 계정을 연결한 뒤 다시 돌아오세요.
+          <div>
+            <button
+              type="button"
+              onClick={handleNotionConnect}
+              disabled={connectLoading}
+              className={PRIMARY_BUTTON}
+            >
+              {connectLoading ? "연결 준비 중..." : "Notion 연동하기"}
+            </button>
+            {connectError && (
+              <p className="mt-3 border-l-2 border-destructive pl-3 text-sm text-destructive">
+                {connectError}
               </p>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={handleNotionConnect}
-                disabled={connectLoading}
-                className="inline-flex rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {connectLoading ? "연결 준비 중..." : "Notion 연동하기"}
-              </button>
-              {connectError && (
-                <p className="mt-2 text-sm text-destructive">{connectError}</p>
-              )}
-            </div>
+            )}
           </div>
-
-          {usesSafariHandoff && (
-            <div className="rounded-xl border border-muted bg-muted/30 p-4 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">
-                iOS 홈 화면 앱에서 연결하기
-              </p>
-              <p className="mt-2">
-                Notion 연동은 Safari에서 진행됩니다. Safari에서 계정 승인과 DB
-                선택을 마친 뒤, 홈 화면 Dailyset 아이콘으로 돌아오세요.
-              </p>
-            </div>
-          )}
         </div>
-      </div>
+
+        {usesSafariHandoff && (
+          <div className="mt-6 border-l-2 border-(--session-accent) pl-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              iOS 홈 화면 앱에서 연결하기
+            </p>
+            <p className="mt-2">
+              Notion 연동은 Safari에서 진행됩니다. Safari에서 계정 승인과 DB
+              선택을 마친 뒤, 홈 화면 Dailyset 아이콘으로 돌아오세요.
+            </p>
+          </div>
+        )}
+      </NotionPageShell>
     );
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl p-6">
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold">Notion DB 연결</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Notion 데이터베이스 목록을 불러오는 중입니다.
-          </p>
-        </div>
-      </div>
+      <NotionPageShell
+        title="Notion DB 연결"
+        description="Notion 데이터베이스 목록을 불러오는 중입니다."
+      />
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
-      <div className="space-y-6">
-        <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold">Notion DB 연결</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                운동 기록용 DB, 운동 목록 DB, 세션 DB를 각각 선택하세요.
-              </p>
-            </div>
+    <NotionPageShell
+      title="Notion DB 연결"
+      description="운동 기록용 DB, 운동 목록 DB, 세션 DB를 각각 선택하세요."
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={() => fetchDatabaseOptions("refresh")}
+            disabled={refreshing}
+            className={TEXT_BUTTON}
+          >
+            {refreshing ? "새로고침 중..." : "목록 새로고침"}
+          </button>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => fetchDatabaseOptions("refresh")}
-                disabled={refreshing}
-                className="rounded-md border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {refreshing ? "새로고침 중..." : "목록 새로고침"}
-              </button>
+          <Link href="/app" className={TEXT_BUTTON}>
+            홈으로
+          </Link>
+        </>
+      }
+    >
+      {error && (
+        <div className="mt-6 space-y-3 border-l-2 border-destructive pl-3 text-sm text-destructive">
+          <div>에러: {error}</div>
 
-              <Link
-                href="/app"
-                className="rounded-md border px-4 py-2 text-sm font-medium"
-              >
-                홈으로
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive space-y-3">
-            <div>에러: {error}</div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleNotionConnect}
-                disabled={connectLoading}
-                className="inline-flex rounded-md border border-destructive/30 bg-background px-4 py-2 text-sm font-medium text-destructive disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {connectLoading ? "연결 준비 중..." : "Notion 연동 다시 하기"}
-              </button>
-
-              <Link
-                href="/app"
-                className="inline-flex rounded-md border border-destructive/30 bg-background px-4 py-2 text-sm font-medium text-destructive"
-              >
-                홈으로
-              </Link>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-xl border bg-card p-6 shadow-sm space-y-5">
-          <div className="space-y-2">
-            <label htmlFor="exercise-db" className="block text-sm font-medium">
-              Workout Exercise DB
-            </label>
-            <select
-              id="exercise-db"
-              value={selectedExerciseDbId}
-              onChange={(e) => setSelectedExerciseDbId(e.target.value)}
-              className="w-full rounded-md border px-3 py-2"
-            >
-              <option value="">선택하세요</option>
-              {exerciseOptions.map((db) => (
-                <option key={db.id} value={db.id}>
-                  {db.title}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              운동 목록과 카테고리 정보를 읽어올 데이터베이스를 선택합니다.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="session-db" className="block text-sm font-medium">
-              Workout Session DB
-            </label>
-            <select
-              id="session-db"
-              value={selectedSessionDbId}
-              onChange={(e) => setSelectedSessionDbId(e.target.value)}
-              className="w-full rounded-md border px-3 py-2"
-            >
-              <option value="">선택하세요</option>
-              {sessionOptions.map((db) => (
-                <option key={db.id} value={db.id}>
-                  {db.title}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              세션 정보가 저장될 데이터베이스를 선택합니다. (Sets를 묶는 상위
-              레코드)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="sets-db" className="block text-sm font-medium">
-              Workout Set DB
-            </label>
-            <select
-              id="sets-db"
-              value={selectedSetsDbId}
-              onChange={(e) => setSelectedSetsDbId(e.target.value)}
-              className="w-full rounded-md border px-3 py-2"
-            >
-              <option value="">선택하세요</option>
-              {setsOptions.map((db) => (
-                <option key={db.id} value={db.id}>
-                  {db.title}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">
-              세트 기록이 저장될 데이터베이스를 선택합니다.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              같은 데이터베이스는 여러 역할에 중복 선택할 수 없습니다.
-            </p>
-
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleCompleteConnection}
-              disabled={!isCompleteEnabled || submitting}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleNotionConnect}
+              disabled={connectLoading}
+              className={SECONDARY_BUTTON}
             >
-              {submitting ? "저장 중..." : "연결 완료"}
+              {connectLoading ? "연결 준비 중..." : "Notion 연동 다시 하기"}
             </button>
+
+            <Link href="/app" className={SECONDARY_BUTTON}>
+              홈으로
+            </Link>
           </div>
         </div>
+      )}
 
-        {submitError && (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            에러: {submitError}
-          </div>
-        )}
+      <div>
+        <div className="space-y-2 border-b border-border py-5">
+          <label htmlFor="exercise-db" className={FIELD_LABEL}>
+            Workout Exercise DB
+          </label>
+          <select
+            id="exercise-db"
+            value={selectedExerciseDbId}
+            onChange={(e) => setSelectedExerciseDbId(e.target.value)}
+            className={FIELD_SELECT}
+          >
+            <option value="">선택하세요</option>
+            {exerciseOptions.map((db) => (
+              <option key={db.id} value={db.id}>
+                {db.title}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            운동 목록과 카테고리 정보를 읽어올 데이터베이스를 선택합니다.
+          </p>
+        </div>
+
+        <div className="space-y-2 border-b border-border py-5">
+          <label htmlFor="session-db" className={FIELD_LABEL}>
+            Workout Session DB
+          </label>
+          <select
+            id="session-db"
+            value={selectedSessionDbId}
+            onChange={(e) => setSelectedSessionDbId(e.target.value)}
+            className={FIELD_SELECT}
+          >
+            <option value="">선택하세요</option>
+            {sessionOptions.map((db) => (
+              <option key={db.id} value={db.id}>
+                {db.title}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            세션 정보가 저장될 데이터베이스를 선택합니다. (Sets를 묶는 상위
+            레코드)
+          </p>
+        </div>
+
+        <div className="space-y-2 border-b border-border py-5">
+          <label htmlFor="sets-db" className={FIELD_LABEL}>
+            Workout Set DB
+          </label>
+          <select
+            id="sets-db"
+            value={selectedSetsDbId}
+            onChange={(e) => setSelectedSetsDbId(e.target.value)}
+            className={FIELD_SELECT}
+          >
+            <option value="">선택하세요</option>
+            {setsOptions.map((db) => (
+              <option key={db.id} value={db.id}>
+                {db.title}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            세트 기록이 저장될 데이터베이스를 선택합니다.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            같은 데이터베이스는 여러 역할에 중복 선택할 수 없습니다.
+          </p>
+
+          <button
+            type="button"
+            onClick={handleCompleteConnection}
+            disabled={!isCompleteEnabled || submitting}
+            className={PRIMARY_BUTTON}
+          >
+            {submitting ? "저장 중..." : "연결 완료"}
+          </button>
+        </div>
       </div>
-    </div>
+
+      {submitError && (
+        <p className="border-l-2 border-destructive pl-3 text-sm text-destructive">
+          에러: {submitError}
+        </p>
+      )}
+    </NotionPageShell>
   );
 }
