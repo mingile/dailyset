@@ -33,20 +33,6 @@ const mplusRounded = M_PLUS_Rounded_1c({
   weight: "500",
 });
 
-const suit = localFont({
-  src: "../fonts/SUIT-Variable.woff2",
-  variable: "--font-session",
-  weight: "100 900",
-  display: "swap",
-});
-
-const blackSans = localFont({
-  src: "../fonts/BlackHanSans-Regular.ttf",
-  variable: "--font-session",
-  weight: "100 900",
-  display: "swap",
-});
-
 const kyobo2019 = localFont({
   src: "../fonts/Kyobo Handwriting Font 2019.otf",
   variable: "--font-session",
