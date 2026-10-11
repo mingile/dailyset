@@ -34,11 +34,7 @@ import {
   getPreviousSets,
   type PreviousSets,
 } from "@/lib/previous-record";
-import {
-  createRunningExerciseTimer,
-  pauseExerciseTimer,
-  resumeExerciseTimer,
-} from "@/lib/timer";
+import { switchActiveExerciseTimer } from "@/lib/timer";
 import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
 import {
   AlertDialog,
@@ -148,35 +144,9 @@ export function WorkoutSessionClient({
     const prevActiveExerciseId = prevActiveExerciseIdRef.current;
     if (prevActiveExerciseId === activeExerciseId) return;
 
-    onExerciseTimersChange((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      if (
-        prevActiveExerciseId &&
-        next[prevActiveExerciseId]?.status === "running"
-      ) {
-        next[prevActiveExerciseId] = pauseExerciseTimer(
-          next[prevActiveExerciseId],
-        );
-        changed = true;
-      }
-
-      if (activeExerciseId) {
-        const existing = next[activeExerciseId];
-        if (existing) {
-          if (existing.status !== "running") {
-            next[activeExerciseId] = resumeExerciseTimer(existing);
-            changed = true;
-          }
-        } else {
-          next[activeExerciseId] = createRunningExerciseTimer();
-          changed = true;
-        }
-      }
-
-      return changed ? next : prev;
-    });
+    onExerciseTimersChange((prev) =>
+      switchActiveExerciseTimer(prev, prevActiveExerciseId, activeExerciseId),
+    );
 
     prevActiveExerciseIdRef.current = activeExerciseId;
   }, [activeExerciseId, onExerciseTimersChange]);
