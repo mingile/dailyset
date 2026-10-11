@@ -88,8 +88,6 @@ export function HeaderControls({
         map.set(dateStr, true);
       });
 
-      console.log("[sessionsMap]", historyVersion, map.has("2026-08-19"));
-
       return map;
     } catch (e) {
       return new Map<string, boolean>();

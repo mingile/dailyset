@@ -35,17 +35,13 @@ export function nextWeight(
   direction: "increase" | "decrease",
 ) {
   const { unit, step, stepUnit } = ruleDecision(equipment);
-  console.log("nextWeight 입력", { weight, equipment, direction });
-  console.log("ruleDecision,", { unit, step, stepUnit });
   let delta = 0;
   if (stepUnit === "kg") {
     delta = direction === "increase" ? step : -step;
   } else {
     delta = direction === "increase" ? lbToKg(step) : -lbToKg(step);
   }
-  console.log("delta", delta);
   if (weight + delta < 0) return 0;
-  console.log("weight + delta", weight + delta);
   return Math.round((weight + delta) * 10) / 10;
 }
 

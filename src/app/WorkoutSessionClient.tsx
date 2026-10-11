@@ -23,9 +23,7 @@ import {
   Session,
   ExerciseTimers,
 } from "./types";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
-import { ruleDecision } from "@/lib/weightUnit";
 import { TrashIcon, Plus, CheckCircle2 } from "lucide-react";
 import { convertInputToKg } from "@/lib/weightUnit";
 import { nextWeight } from "@/lib/weightUnit";

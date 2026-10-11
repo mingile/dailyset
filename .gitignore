@@ -48,3 +48,9 @@ docs/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+.claude/
+skill.md
+Claude outputs/
+
+notion-template-build-guide.html
+public/ui_reference.png

@@ -1,3 +1,5 @@
+// Queue Consumer
+
 import { handleCallback } from "@vercel/queue";
 import { getNotionSyncErrorStatusCode } from "@/lib/notion/errors";
 import { ensureNotionSession } from "@/lib/notion/sessionEnsure";

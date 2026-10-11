@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { LandingSessionDemo } from "@/components/landing/landing-session-demo";
 
+function SectionLabel({ index }: { index: string }) {
+  return (
+    <div className="mb-6 flex items-center gap-3">
+      <span className="text-xs font-medium tracking-[0.2em] text-[#F2EC00]">
+        {index}
+      </span>
+    </div>
+  );
+}
+
 export function LandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#18181B] text-zinc-50">
@@ -12,12 +22,6 @@ export function LandingPage() {
           >
             <span className="text-[#F2EC00]">Daily</span>{" "}
             <span className="text-[#71717A]">Set</span>
-          </Link>
-          <Link
-            href="/app"
-            className="text-sm font-medium text-zinc-300 hover:text-zinc-50 hover:underline underline-offset-4"
-          >
-            Start
           </Link>
         </div>
       </header>
@@ -41,74 +45,16 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section aria-label="Session demo" className="border-t border-white/10">
-          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+        <section aria-label="Session demo" className="bg-white/3">
+          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-12">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-500 mb-4">
+              Session Demo
+            </span>
             <LandingSessionDemo />
           </div>
         </section>
 
-        <section aria-label="Product philosophy" className="border-t border-white/10">
-          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-            <div className="max-w-xl space-y-4 text-left">
-              <p className="text-2xl font-medium tracking-tight sm:text-3xl">
-                운동 기록은
-                <br />
-                복잡할 필요가 없습니다.
-              </p>
-              <p className="text-lg leading-relaxed text-zinc-400">
-                필요한 것은
-                <br />
-                세트, 중량, 반복 수.
-              </p>
-              <p className="text-lg leading-relaxed text-zinc-400">
-                Daily Set는
-                <br />
-                운동 흐름을 방해하지 않는
-                <br />
-                기록 도구입니다.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section aria-label="Local-first" className="border-t border-white/10">
-          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-            <div className="max-w-xl space-y-4 text-left">
-              <p className="text-sm text-zinc-500">
-                Your records stay with you.
-              </p>
-              <p className="text-2xl font-medium tracking-tight sm:text-3xl">
-                기록은 먼저
-                <br />내 기기에 저장됩니다.
-              </p>
-              <p className="text-lg leading-relaxed text-zinc-400">
-                인터넷 연결이나 계정 없이
-                <br />
-                운동을 계속할 수 있습니다.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section aria-label="Notion backup" className="border-t border-white/10">
-          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
-            <div className="max-w-xl space-y-4 text-left">
-              <p className="text-sm text-zinc-500">Need more?</p>
-              <p className="text-lg leading-relaxed text-zinc-400">
-                Notion 연결을 통해
-                <br />
-                기록을 백업할 수 있습니다.
-              </p>
-              <p className="text-lg leading-relaxed text-zinc-400">
-                하지만 Daily Set는
-                <br />
-                연동 없이도 사용할 수 있습니다.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section aria-label="Get started" className="border-t border-white/10">
+        <section aria-label="Get started">
           <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
             <div className="max-w-xl text-left">
               <p className="text-2xl font-medium tracking-tight sm:text-3xl">
@@ -120,6 +66,72 @@ export function LandingPage() {
               >
                 시작하기
               </Link>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Product philosophy">
+          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+            <div className="max-w-xl text-left">
+              <SectionLabel index="01" />
+              <div className="space-y-4">
+                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                  운동 기록은
+                  <br />
+                  복잡할 필요가 없습니다.
+                </p>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  필요한 것은
+                  <br />
+                  세트, 중량, 반복 수.
+                </p>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  Daily Set는
+                  <br />
+                  운동 흐름을 방해하지 않는
+                  <br />
+                  기록 도구입니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Local-first">
+          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+            <div className="max-w-xl text-left">
+              <SectionLabel index="02" />
+              <div className="space-y-4">
+                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                  기록은 먼저
+                  <br />내 기기에 저장됩니다.
+                </p>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  인터넷 연결이나 계정 없이
+                  <br />
+                  운동을 계속할 수 있습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="Notion backup">
+          <div className="mx-auto max-w-5xl px-6 py-16 sm:py-20">
+            <div className="max-w-xl text-left">
+              <SectionLabel index="03" />
+              <div className="space-y-4">
+                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                  Notion 연결을 통해
+                  <br />
+                  기록을 백업할 수 있습니다.
+                </p>
+                <p className="text-lg leading-relaxed text-zinc-400">
+                  하지만 Daily Set는
+                  <br />
+                  연동 없이도 사용할 수 있습니다.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -143,7 +155,6 @@ export function LandingPage() {
                 Privacy Policy
               </Link>
             </div>
-            <span>운동 기록에 집중한 미니멀 웹앱</span>
           </div>
         </div>
       </footer>

@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import type { LibraryCategory, LibraryExercise, LibraryState } from "@/app/types";
+import type {
+  LibraryCategory,
+  LibraryExercise,
+  LibraryState,
+} from "@/app/types";
 import {
   getOrderedCategories,
   groupExercisesByCategory,
