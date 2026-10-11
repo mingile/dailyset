@@ -7,7 +7,7 @@ import {
   elapsedSecondsFromStartedAt,
   reconcileStoredExerciseTimers,
 } from "@/lib/timer";
-import { kgToLb, lbToKg, nextWeight } from "@/lib/weightUnit";
+import { kgToLb, lbToKg } from "@/lib/weightUnit";
 import { withBasePath } from "@/lib/base-path";
 import {
   computeHistoryDirty,
@@ -642,114 +642,6 @@ export function RootClient() {
     );
   }
 
-  function changeTargetMainSetCount(exIdx: number, delta: number) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        const currentTarget = ex.targetMainSetCount || 0;
-        const nextTarget = Math.max(0, currentTarget + delta);
-
-        if (delta > 0) {
-          const currentMainSetCount = ex.sets.filter(
-            (s) => (s.setType ?? "main") === "main",
-          ).length;
-
-          if (currentMainSetCount < nextTarget) {
-            const lastMainIndex =
-              ex.sets
-                .map((s, idx) => ({ s, idx }))
-                .reverse()
-                .find(({ s }) => (s.setType ?? "main") === "main")?.idx ??
-              ex.sets.length - 1;
-
-            const templateSet =
-              ex.sets[lastMainIndex] || ex.sets[ex.sets.length - 1];
-
-            const newSet = {
-              weight: templateSet.weight,
-              reps: templateSet.reps,
-              done: false,
-              synced: false,
-              equipment: templateSet.equipment,
-              memo: "",
-              unit: templateSet.unit,
-              setType: "main" as const,
-            };
-
-            const newSets = [...ex.sets];
-            newSets.splice(lastMainIndex + 1, 0, newSet);
-
-            return {
-              ...ex,
-              targetMainSetCount: nextTarget,
-              sets: newSets,
-            };
-          }
-        }
-
-        return {
-          ...ex,
-          targetMainSetCount: nextTarget,
-        };
-      }),
-    );
-  }
-
-  function changeTargetWarmupSetCount(exIdx: number, delta: number) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        const currentTarget = ex.targetWarmupSetCount || 0;
-        const nextTarget = Math.max(0, currentTarget + delta);
-
-        if (delta > 0) {
-          const currentWarmupSetCount = ex.sets.filter(
-            (s) => s.setType === "warmup",
-          ).length;
-
-          if (currentWarmupSetCount < nextTarget) {
-            const lastWarmupIndex =
-              ex.sets
-                .map((s, idx) => ({ s, idx }))
-                .reverse()
-                .find(({ s }) => (s.setType ?? "main") === "warmup")?.idx ?? -1;
-
-            const templateSet =
-              lastWarmupIndex >= 0 ? ex.sets[lastWarmupIndex] : ex.sets[0];
-
-            const newSet = {
-              weight: templateSet?.weight ?? 0,
-              reps: templateSet?.reps ?? 0,
-              done: false,
-              synced: false,
-              equipment: templateSet?.equipment ?? "cable-machine",
-              memo: "",
-              unit: templateSet?.unit ?? "kg",
-              setType: "warmup" as const,
-            };
-
-            const insertIndex = lastWarmupIndex + 1;
-            const newSets = [...ex.sets];
-            newSets.splice(insertIndex, 0, newSet);
-
-            return {
-              ...ex,
-              targetWarmupSetCount: nextTarget,
-              sets: newSets,
-            };
-          }
-        }
-
-        return {
-          ...ex,
-          targetWarmupSetCount: nextTarget,
-        };
-      }),
-    );
-  }
-
   function addExercisesToSession(newExercises: Exercises) {
     markHistoryDirty();
     setExercises((prev) => {
@@ -765,21 +657,6 @@ export function RootClient() {
     });
   }
 
-  function clearDoneStatus() {
-    if (confirm("체크 상태를 초기화하시겠습니까?")) {
-      markHistoryDirty();
-      setExercises((prev) =>
-        prev.map((ex) => ({
-          ...ex,
-          sets: ex.sets.map((set) => ({
-            ...set,
-            done: false,
-          })),
-        })),
-      );
-    }
-  }
-
   function onSavedHistory() {
     setHistoryVersion((v) => v + 1);
   }
@@ -793,12 +670,12 @@ export function RootClient() {
   }
 
   function handleStartNewSession() {
-    if (historyDirty) {
-      const confirmed = window.confirm(
-        "저장되지 않은 변경사항이 있습니다.\n새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)",
-      );
-      if (!confirmed) return;
-    }
+    const confirmed = window.confirm(
+      historyDirty
+        ? "저장되지 않은 변경사항이 있습니다.\n새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)"
+        : "새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)",
+    );
+    if (!confirmed) return;
 
     startNewSession();
     toast.success("새 세션을 시작합니다", {
@@ -940,38 +817,6 @@ export function RootClient() {
     return { ok: true, savedAt };
   }
 
-  async function saveSession() {
-    // useRef 기반 lock으로 중복 실행 방지
-    if (savingRef.current) {
-      console.log("이미 저장 중입니다");
-      return;
-    }
-
-    savingRef.current = true;
-    setSaving(true);
-
-    try {
-      const result = persistSessionLocally();
-
-      if (!result.ok) {
-        toast.error("저장할 내용이 없습니다.", {
-          duration: 1000,
-        });
-        return;
-      }
-
-      toast.success("로컬 저장 완료");
-    } catch (error) {
-      console.error("저장 중 예상치 못한 오류:", error);
-      toast.error("저장 중 오류 발생", {
-        duration: 2000,
-      });
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  }
-
   async function handleCompleteWorkout() {
     if (savingRef.current) {
       console.log("이미 저장 중입니다");
@@ -1088,6 +933,7 @@ export function RootClient() {
           historyVersion={historyVersion}
           currentDurationSeconds={currentDurationSeconds}
           onHistoryChanged={onSavedHistory}
+          onStartNewSession={handleStartNewSession}
         />
         {!showHistory && (
           <WorkoutSessionClient
@@ -1099,19 +945,14 @@ export function RootClient() {
             changeMemo={changeMemo}
             deleteSet={deleteSet}
             displayWeightUnit={displayWeightUnit}
-            nextWeight={nextWeight}
             changeEquipment={changeEquipment}
             changeUnit={changeUnit}
             changeSetType={changeSetType}
-            changeTargetMainSetCount={changeTargetMainSetCount}
-            changeTargetWarmupSetCount={changeTargetWarmupSetCount}
             sessionMetadata={sessionMetadata}
             exerciseTimers={exerciseTimers}
             onExerciseTimersChange={setExerciseTimers}
             addExercisesToSession={addExercisesToSession}
-            onSave={saveSession}
             onCompleteWorkout={handleCompleteWorkout}
-            onStartNewSession={handleStartNewSession}
             saving={saving}
           />
         )}

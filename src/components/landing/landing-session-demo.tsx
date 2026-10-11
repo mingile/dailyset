@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { WorkoutSessionClient } from "@/app/WorkoutSessionClient";
 import type { ExerciseTimers, Exercises, SessionMetadata } from "@/app/types";
-import { kgToLb, nextWeight } from "@/lib/weightUnit";
+import { kgToLb } from "@/lib/weightUnit";
 
 const DEMO_SESSION_ID = "landing-demo-session";
 const DEMO_EXERCISE_ID = "landing-demo-bench-press";
@@ -236,112 +236,6 @@ export function LandingSessionDemo() {
     );
   }
 
-  function changeTargetMainSetCount(exIdx: number, delta: number) {
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        const currentTarget = ex.targetMainSetCount || 0;
-        const nextTarget = Math.max(0, currentTarget + delta);
-
-        if (delta > 0) {
-          const currentMainSetCount = ex.sets.filter(
-            (s) => (s.setType ?? "main") === "main",
-          ).length;
-
-          if (currentMainSetCount < nextTarget) {
-            const lastMainIndex =
-              ex.sets
-                .map((s, idx) => ({ s, idx }))
-                .reverse()
-                .find(({ s }) => (s.setType ?? "main") === "main")?.idx ??
-              ex.sets.length - 1;
-
-            const templateSet =
-              ex.sets[lastMainIndex] || ex.sets[ex.sets.length - 1];
-
-            const newSet = {
-              weight: templateSet.weight,
-              reps: templateSet.reps,
-              done: false,
-              synced: false,
-              equipment: templateSet.equipment,
-              memo: "",
-              unit: templateSet.unit,
-              setType: "main" as const,
-            };
-
-            const newSets = [...ex.sets];
-            newSets.splice(lastMainIndex + 1, 0, newSet);
-
-            return {
-              ...ex,
-              targetMainSetCount: nextTarget,
-              sets: newSets,
-            };
-          }
-        }
-
-        return {
-          ...ex,
-          targetMainSetCount: nextTarget,
-        };
-      }),
-    );
-  }
-
-  function changeTargetWarmupSetCount(exIdx: number, delta: number) {
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        const currentTarget = ex.targetWarmupSetCount || 0;
-        const nextTarget = Math.max(0, currentTarget + delta);
-
-        if (delta > 0) {
-          const currentWarmupSetCount = ex.sets.filter(
-            (s) => s.setType === "warmup",
-          ).length;
-
-          if (currentWarmupSetCount < nextTarget) {
-            const lastWarmupIndex =
-              ex.sets
-                .map((s, idx) => ({ s, idx }))
-                .reverse()
-                .find(({ s }) => (s.setType ?? "main") === "warmup")?.idx ?? -1;
-
-            const templateSet =
-              lastWarmupIndex >= 0 ? ex.sets[lastWarmupIndex] : ex.sets[0];
-
-            const newSet = {
-              weight: templateSet?.weight ?? 0,
-              reps: templateSet?.reps ?? 0,
-              done: false,
-              synced: false,
-              equipment: templateSet?.equipment ?? "barbell",
-              memo: "",
-              unit: templateSet?.unit ?? "kg",
-              setType: "warmup" as const,
-            };
-
-            const insertIndex = lastWarmupIndex + 1;
-            const newSets = [...ex.sets];
-            newSets.splice(insertIndex, 0, newSet);
-
-            return {
-              ...ex,
-              targetWarmupSetCount: nextTarget,
-              sets: newSets,
-            };
-          }
-        }
-
-        return {
-          ...ex,
-          targetWarmupSetCount: nextTarget,
-        };
-      }),
-    );
-  }
-
   function handleSessionNameBlur() {
     const trimmed = sessionNameInput.trim();
     const nextName = trimmed || "Daily Set 세션";
@@ -366,7 +260,6 @@ export function LandingSessionDemo() {
       <WorkoutSessionClient
         exercises={exercises}
         displayWeightUnit={displayWeightUnit}
-        nextWeight={nextWeight}
         addSet={addSet}
         changeWeight={changeWeight}
         changeReps={changeReps}
@@ -376,15 +269,11 @@ export function LandingSessionDemo() {
         changeEquipment={changeEquipment}
         changeUnit={changeUnit}
         changeSetType={changeSetType}
-        changeTargetMainSetCount={changeTargetMainSetCount}
-        changeTargetWarmupSetCount={changeTargetWarmupSetCount}
         sessionMetadata={sessionMetadata}
         exerciseTimers={exerciseTimers}
         onExerciseTimersChange={setExerciseTimers}
         addExercisesToSession={() => {}}
-        onSave={() => {}}
         onCompleteWorkout={() => {}}
-        onStartNewSession={() => {}}
         saving={false}
         hideSessionActions
       />
