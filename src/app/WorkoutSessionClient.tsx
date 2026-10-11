@@ -35,13 +35,8 @@ import {
   type PreviousSets,
 } from "@/lib/previous-record";
 import type { SessionExercisesActions } from "@/hooks/useSessionExercises";
-import { useTimerTick } from "@/hooks/useTimerTick";
-import {
-  createRunningExerciseTimer,
-  getExerciseElapsedSeconds,
-  pauseExerciseTimer,
-  resumeExerciseTimer,
-} from "@/lib/timer";
+import { switchActiveExerciseTimer } from "@/lib/timer";
+import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,18 +70,6 @@ function getCompletedSetCount(exercise: Exercise): number {
 
 function isExerciseCompleted(exercise: Exercise): boolean {
   return exercise.sets.length > 0 && exercise.sets.every((set) => set.done);
-}
-
-function formatElapsedTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }
-
-  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
 export function WorkoutSessionClient({
@@ -138,46 +121,13 @@ export function WorkoutSessionClient({
       ? null
       : (exercises[openAccordionIndex]?.id ?? null);
 
-  useTimerTick(activeExerciseId !== null);
-
-  const displayElapsedSeconds: Record<string, number> = {};
-  for (const [exerciseId, timerState] of Object.entries(exerciseTimers)) {
-    displayElapsedSeconds[exerciseId] = getExerciseElapsedSeconds(timerState);
-  }
-
   useEffect(() => {
     const prevActiveExerciseId = prevActiveExerciseIdRef.current;
     if (prevActiveExerciseId === activeExerciseId) return;
 
-    onExerciseTimersChange((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      if (
-        prevActiveExerciseId &&
-        next[prevActiveExerciseId]?.status === "running"
-      ) {
-        next[prevActiveExerciseId] = pauseExerciseTimer(
-          next[prevActiveExerciseId],
-        );
-        changed = true;
-      }
-
-      if (activeExerciseId) {
-        const existing = next[activeExerciseId];
-        if (existing) {
-          if (existing.status !== "running") {
-            next[activeExerciseId] = resumeExerciseTimer(existing);
-            changed = true;
-          }
-        } else {
-          next[activeExerciseId] = createRunningExerciseTimer();
-          changed = true;
-        }
-      }
-
-      return changed ? next : prev;
-    });
+    onExerciseTimersChange((prev) =>
+      switchActiveExerciseTimer(prev, prevActiveExerciseId, activeExerciseId),
+    );
 
     prevActiveExerciseIdRef.current = activeExerciseId;
   }, [activeExerciseId, onExerciseTimersChange]);
@@ -287,12 +237,7 @@ export function WorkoutSessionClient({
                           )}
                         </div>
                       </div>
-                      {displayElapsedSeconds[ex.id] !== undefined &&
-                        displayElapsedSeconds[ex.id] > 0 && (
-                          <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
-                            {formatElapsedTime(displayElapsedSeconds[ex.id])}
-                          </span>
-                        )}
+                      <ExerciseElapsedTime timer={exerciseTimers[ex.id]} />
                     </div>
                   ) : (
                     <div className="flex w-full min-w-0 items-center gap-3">
@@ -557,7 +502,8 @@ export function WorkoutSessionClient({
             </SheetTrigger>
             <SheetContent
               side="bottom"
-              className="h-[85vh] overflow-hidden flex flex-col p-2"
+              showCloseButton={false}
+              className="session-surface session-font h-[85vh] flex flex-col gap-0 overflow-hidden"
             >
               <AddExerciseBottomSheet
                 exercises={exercises}
@@ -1007,31 +953,65 @@ function AddExerciseBottomSheet({
     onClose();
   }
 
+  const header = (
+    <SheetHeader className="gap-0 pb-2">
+      <div className="flex items-center justify-between">
+        <SheetTitle className="text-2xl font-bold tracking-tight">
+          운동 추가
+        </SheetTitle>
+        <Button
+          type="button"
+          variant="ghost"
+          className="-mr-2 h-11 min-w-11 rounded-none px-2 text-sm font-semibold tracking-[0.1em]"
+          onClick={onClose}
+        >
+          닫기
+        </Button>
+      </div>
+      <SheetDescription>
+        세션에 추가할 운동을 선택하세요 (중복 제외됨)
+      </SheetDescription>
+    </SheetHeader>
+  );
+
   if (libraryState.status === "loading") {
     return (
-      <div className="flex items-center justify-center py-8">
-        <p className="text-muted-foreground">운동 목록을 불러오는 중...</p>
-      </div>
+      <>
+        {header}
+        <div className="flex items-center justify-center py-8">
+          <p className="text-muted-foreground">운동 목록을 불러오는 중...</p>
+        </div>
+      </>
     );
   }
 
   if (libraryState.status === "error") {
     return (
-      <div className="flex flex-col items-center justify-center py-8 px-4">
-        <p className="text-destructive mb-2">운동 목록을 불러오지 못했습니다</p>
-        <p className="text-sm text-muted-foreground">{libraryState.message}</p>
-      </div>
+      <>
+        {header}
+        <div className="flex flex-col items-center justify-center py-8 px-4">
+          <p className="text-destructive mb-2">
+            운동 목록을 불러오지 못했습니다
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {libraryState.message}
+          </p>
+        </div>
+      </>
     );
   }
 
   if (libraryState.status === "empty") {
     return (
-      <div className="flex flex-col items-center justify-center py-8 px-4">
-        <p className="text-muted-foreground mb-2">등록된 운동이 없습니다</p>
-        <p className="text-sm text-muted-foreground">
-          Exercise DB에 운동을 추가해주세요
-        </p>
-      </div>
+      <>
+        {header}
+        <div className="flex flex-col items-center justify-center py-8 px-4">
+          <p className="text-muted-foreground mb-2">등록된 운동이 없습니다</p>
+          <p className="text-sm text-muted-foreground">
+            Exercise DB에 운동을 추가해주세요
+          </p>
+        </div>
+      </>
     );
   }
 
@@ -1054,34 +1034,29 @@ function AddExerciseBottomSheet({
 
   return (
     <>
-      <SheetHeader>
-        <SheetTitle>운동 추가</SheetTitle>
-        <SheetDescription>
-          세션에 추가할 운동을 선택하세요 (중복 제외됨)
-        </SheetDescription>
-      </SheetHeader>
+      {header}
 
-      <div className="flex-1 overflow-y-auto mt-4">
-        <div className="mb-4">
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-4 pb-2">
           <input
             type="text"
             placeholder="운동 이름 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none placeholder:text-muted-foreground focus:border-b-2 focus:border-(--session-accent)"
           />
         </div>
 
-        <div className="sticky top-0 bg-background border-b z-10 pb-2">
-          <div className="flex overflow-x-auto gap-2">
+        <div className="sticky top-0 z-10 border-b border-border bg-background">
+          <div className="flex overflow-x-auto px-4">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm font-medium transition-colors ${
+                className={`h-11 whitespace-nowrap border-b-2 px-3 text-sm ${
                   selectedCategory === category
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground hover:bg-accent"
+                    ? "border-foreground font-bold"
+                    : "border-transparent text-muted-foreground"
                 }`}
               >
                 {category}
@@ -1090,7 +1065,7 @@ function AddExerciseBottomSheet({
           </div>
         </div>
 
-        <div className="mt-4 space-y-2">
+        <div className="px-4 pb-4">
           {filteredExercises.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
               {searchQuery
@@ -1100,69 +1075,67 @@ function AddExerciseBottomSheet({
                   : `${selectedCategory}에 등록된 운동이 없습니다`}
             </p>
           ) : (
-            filteredExercises.map((exercise) => {
+            filteredExercises.map((exercise, index) => {
               const isSelected = selectedExerciseIds.has(exercise.id);
+              const subtitle = [exercise.equipment, exercise.primaryEffect]
+                .filter(Boolean)
+                .join(" · ");
+
               return (
-                <div
+                <button
                   key={exercise.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => toggleExerciseSelection(exercise.id)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    isSelected
-                      ? "bg-accent border-primary"
-                      : "bg-card hover:bg-accent"
-                  }`}
+                  className="relative flex min-h-14 w-full items-center gap-3 border-b border-border py-2 text-left"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-foreground">
-                        {exercise.name}
-                      </h3>
-                      <div className="flex gap-2 mt-1">
-                        {exercise.equipment && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            {exercise.equipment}
-                          </span>
-                        )}
-                        {exercise.primaryEffect && (
-                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                            {exercise.primaryEffect}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-2">
-                      {isSelected && (
-                        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                          <svg
-                            className="w-4 h-4 text-primary-foreground"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  {isSelected && (
+                    <>
+                      <span className="pointer-events-none absolute inset-0 -mx-4 bg-(--session-accent)/20" />
+                      <span className="pointer-events-none absolute inset-y-0 -left-4 w-1 bg-(--session-accent)" />
+                    </>
+                  )}
+                  <span
+                    className={`relative w-6 shrink-0 text-sm tabular-nums ${isSelected ? "font-bold" : "text-muted-foreground"}`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="relative h-6 shrink-0 border-l border-border" />
+                  <span className="relative min-w-0 flex-1">
+                    <span className="block truncate text-lg font-bold tracking-tight">
+                      {exercise.name}
+                    </span>
+                    {subtitle && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {subtitle}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={`relative flex size-7 shrink-0 items-center justify-center rounded-full border ${
+                      isSelected
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border"
+                    }`}
+                  >
+                    {isSelected && <Check className="size-4" />}
+                  </span>
+                </button>
               );
             })
           )}
         </div>
       </div>
 
-      <div className="border-t pt-4 mt-4">
+      <div className="border-t border-border px-4 py-4">
         <Button
-          className="w-full"
+          className={`h-14 w-full text-lg font-bold ${
+            selectedExerciseIds.size === 0
+              ? "border border-foreground bg-transparent text-foreground hover:bg-transparent"
+              : "bg-(--session-accent) text-zinc-900 hover:bg-(--session-accent)/90"
+          }`}
           onClick={handleConfirm}
           disabled={selectedExerciseIds.size === 0}
-          variant={selectedExerciseIds.size === 0 ? "outline" : "default"}
         >
           추가하기 ({selectedExerciseIds.size})
         </Button>

@@ -3,11 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSessionExercises } from "@/hooks/useSessionExercises";
-import { useTimerTick } from "@/hooks/useTimerTick";
-import {
-  elapsedSecondsFromStartedAt,
-  reconcileStoredExerciseTimers,
-} from "@/lib/timer";
+import { reconcileStoredExerciseTimers } from "@/lib/timer";
 import { kgToLb, lbToKg } from "@/lib/weightUnit";
 import { withBasePath } from "@/lib/base-path";
 import {
@@ -57,12 +53,6 @@ export function RootClient() {
   const [dbConnected, setDbConnected] = useState<boolean>(false);
 
   const savingRef = useRef<boolean>(false);
-
-  useTimerTick(!!sessionMetadata);
-
-  const currentDurationSeconds = sessionMetadata
-    ? elapsedSecondsFromStartedAt(sessionMetadata.startedAt)
-    : 0;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -731,7 +721,6 @@ export function RootClient() {
           showHistory={showHistory}
           setShowHistory={setShowHistory}
           historyVersion={historyVersion}
-          currentDurationSeconds={currentDurationSeconds}
           onHistoryChanged={onSavedHistory}
           onStartNewSession={handleStartNewSession}
         />

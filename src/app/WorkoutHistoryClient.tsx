@@ -276,8 +276,8 @@ export function WorkoutHistoryClient({
       <Button
         type="button"
         variant="outline"
-        size="sm"
         onClick={handleRestoreFromNotion}
+        className="h-11 rounded-md border-foreground bg-transparent text-sm font-semibold"
         disabled={restoring}
       >
         {restoring ? "가져오는 중..." : "Notion에서 가져오기"}
@@ -318,8 +318,8 @@ export function WorkoutHistoryClient({
         );
 
         return (
-          <div key={dateStr} className="space-y-4">
-            <div className="text-xl font-bold text-foreground sticky top-0 bg-background py-2 z-10">
+          <div key={dateStr}>
+            <div className="sticky top-0 z-10 border-b border-foreground bg-background py-2 text-lg font-bold tracking-tight">
               {formatDateHeader(dateStr)}
             </div>
 
@@ -332,14 +332,14 @@ export function WorkoutHistoryClient({
               return (
                 <div
                   key={session.id}
-                  className="border rounded-lg p-4 bg-card shadow-sm"
+                  className="border-b border-border py-4 last:border-b-0"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="text-lg font-semibold">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xl font-bold tracking-tight">
                         {session.sessionName || "운동 세션"}
                       </h3>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {partsStr} · {exerciseCount} exercises · {totalSets}{" "}
                         sets
                         {durationStr && ` · ${durationStr}`}
@@ -347,33 +347,30 @@ export function WorkoutHistoryClient({
                     </div>
                     <button
                       onClick={() => deleteSession(session.id)}
-                      className="text-destructive hover:text-destructive/80 p-2"
+                      className="-mr-2 -mt-1 flex size-11 shrink-0 items-center justify-center text-muted-foreground"
                       title="세션 삭제"
                     >
                       <TrashIcon className="size-5" />
                     </button>
                   </div>
 
-                  <div className="space-y-4 mt-4">
+                  <div className="mt-2 space-y-5">
                     {parts.map((part) => {
                       const partExercises = partGrouped.get(part) || [];
                       return (
-                        <div
-                          key={part}
-                          className="border-l-4 border-primary pl-3"
-                        >
-                          <h4 className="text-md font-bold text-foreground mb-2">
+                        <div key={part}>
+                          <h4 className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
                             {part}
                           </h4>
 
-                          <div className="space-y-3">
+                          <div className="mt-1 space-y-3">
                             {partExercises.map((ex) => (
-                              <div key={ex.id} className="pl-2">
-                                <p className="text-sm font-medium text-foreground mb-1">
+                              <div key={ex.id}>
+                                <p className="text-lg font-bold tracking-tight">
                                   {ex.name}
                                 </p>
 
-                                <ul className="space-y-1">
+                                <ul className="mt-1 border-t border-border">
                                   {ex.sets.map((set) => {
                                     const setKey = `${session.id}-${ex.id}-${set.setNo}`;
                                     const isActive = swipingSet === setKey;
@@ -382,7 +379,7 @@ export function WorkoutHistoryClient({
                                     return (
                                       <li
                                         key={set.setNo}
-                                        className="relative overflow-hidden cursor-pointer"
+                                        className="relative cursor-pointer overflow-hidden"
                                         onTouchStart={(e) =>
                                           handleTouchStart(e, setKey)
                                         }
@@ -415,14 +412,26 @@ export function WorkoutHistoryClient({
                                           <TrashIcon className="size-4 text-white" />
                                         </div>
                                         <div
-                                          className="bg-card text-sm text-foreground py-1 transition-transform"
+                                          className="grid min-h-11 grid-cols-[2.5rem_1fr_1fr] items-center gap-1 border-b border-border bg-background px-1 text-base tabular-nums transition-transform"
                                           style={{
                                             transform: `translateX(${offset}px)`,
                                           }}
                                         >
-                                          {set.setNo}세트
-                                          <br />
-                                          {set.weight}kg × {set.reps}회
+                                          <span className="text-sm text-muted-foreground">
+                                            {String(set.setNo).padStart(2, "0")}
+                                          </span>
+                                          <span>
+                                            {set.weight}
+                                            <span className="ml-1 text-xs text-muted-foreground">
+                                              kg
+                                            </span>
+                                          </span>
+                                          <span>
+                                            {set.reps}
+                                            <span className="ml-1 text-xs text-muted-foreground">
+                                              회
+                                            </span>
+                                          </span>
                                         </div>
                                       </li>
                                     );

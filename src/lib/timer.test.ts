@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ExerciseTimers } from "@/app/types";
 import {
   computeElapsedMs,
   computeRemainingMs,
@@ -7,6 +8,7 @@ import {
   reconcileTimerState,
   resumeTimer,
   startTimer,
+  switchActiveExerciseTimer,
 } from "./timer";
 
 const T0 = 1_700_000_000_000;
@@ -72,5 +74,79 @@ describe("elapsedSecondsFromStartedAt", () => {
   it("시작 시각 기준 경과 초를 계산한다", () => {
     const startedAt = new Date(T0).toISOString();
     expect(elapsedSecondsFromStartedAt(startedAt, T0 + 125_000)).toBe(125);
+  });
+});
+
+describe("switchActiveExerciseTimer", () => {
+  const running = (accumulated = 0, startedAtMs = T0) => ({
+    status: "running" as const,
+    accumulatedElapsedSeconds: accumulated,
+    segmentStartedAt: new Date(startedAtMs).toISOString(),
+  });
+  const paused = (accumulated: number) => ({
+    status: "paused" as const,
+    accumulatedElapsedSeconds: accumulated,
+    segmentStartedAt: null,
+  });
+
+  it("활성 운동이 없어지면 이전 운동의 running 타이머를 일시정지한다", () => {
+    const timers: ExerciseTimers = { ex1: running(5, T0) };
+
+    const result = switchActiveExerciseTimer(timers, "ex1", null, T0 + 12_500);
+
+    expect(result.ex1).toEqual(paused(17));
+  });
+
+  it("처음 열린 운동은 running 타이머를 새로 만든다", () => {
+    const result = switchActiveExerciseTimer({}, null, "ex1", T0 + 3_000);
+
+    expect(result.ex1).toEqual(running(0, T0 + 3_000));
+  });
+
+  it("paused 타이머가 있는 운동이 열리면 누적 시간을 유지한 채 재개한다", () => {
+    const timers: ExerciseTimers = { ex1: paused(7) };
+
+    const result = switchActiveExerciseTimer(timers, null, "ex1", T0 + 9_000);
+
+    expect(result.ex1).toEqual(running(7, T0 + 9_000));
+  });
+
+  it("다른 운동으로 전환하면 이전 운동은 일시정지하고 새 운동은 시작한다", () => {
+    const timers: ExerciseTimers = { ex1: running(0, T0) };
+
+    const result = switchActiveExerciseTimer(timers, "ex1", "ex2", T0 + 20_000);
+
+    expect(result.ex1).toEqual(paused(20));
+    expect(result.ex2).toEqual(running(0, T0 + 20_000));
+  });
+
+  it("이전 운동이 paused이고 활성 운동이 없으면 같은 객체를 반환한다", () => {
+    const timers: ExerciseTimers = { ex1: paused(4) };
+
+    expect(switchActiveExerciseTimer(timers, "ex1", null, T0)).toBe(timers);
+  });
+
+  it("새 활성 운동이 이미 running이면 같은 객체를 반환한다", () => {
+    const timers: ExerciseTimers = { ex1: running(2, T0) };
+
+    expect(switchActiveExerciseTimer(timers, null, "ex1", T0 + 5_000)).toBe(
+      timers,
+    );
+  });
+
+  it("이전·새 활성 운동이 모두 없으면 같은 객체를 반환한다", () => {
+    const timers: ExerciseTimers = { ex1: paused(4) };
+
+    expect(switchActiveExerciseTimer(timers, null, null, T0)).toBe(timers);
+  });
+
+  it("입력 timers를 변경하지 않는다", () => {
+    const timers: ExerciseTimers = { ex1: running(0, T0) };
+    const snapshot = structuredClone(timers);
+
+    const result = switchActiveExerciseTimer(timers, "ex1", "ex2", T0 + 5_000);
+
+    expect(result).not.toBe(timers);
+    expect(timers).toEqual(snapshot);
   });
 });

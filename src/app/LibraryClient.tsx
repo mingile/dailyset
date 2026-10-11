@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import {
   LibraryCategory,
   LibraryExercise,
@@ -119,7 +120,7 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
 
   if (libraryState.status === "loading") {
     return (
-      <div className="flex flex-col h-screen items-center justify-center">
+      <div className="session-surface session-font flex flex-col h-screen items-center justify-center">
         <p className="text-muted-foreground">운동 목록을 불러오는 중...</p>
       </div>
     );
@@ -127,7 +128,7 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
 
   if (libraryState.status === "error") {
     return (
-      <div className="flex flex-col h-screen items-center justify-center px-4">
+      <div className="session-surface session-font flex flex-col h-screen items-center justify-center px-4">
         <p className="text-destructive mb-4">운동 목록을 불러오지 못했습니다</p>
         <p className="text-sm text-muted-foreground mb-4">
           {libraryState.message}
@@ -139,7 +140,7 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
 
   if (libraryState.status === "empty") {
     return (
-      <div className="flex flex-col h-screen items-center justify-center px-4">
+      <div className="session-surface session-font flex flex-col h-screen items-center justify-center px-4">
         <p className="text-muted-foreground mb-4">등록된 운동이 없습니다</p>
         <p className="text-sm text-muted-foreground">
           Exercise DB에 운동을 추가해주세요
@@ -155,17 +156,24 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
     : [];
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="p-4 border-b">
-        <h1 className="text-xl font-bold">운동 라이브러리</h1>
+    <div className="session-surface session-font flex flex-col h-screen">
+      <header className="px-4">
+        <div className="flex min-h-14 items-center">
+          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
+            <span className="size-2 rounded-full bg-(--session-accent)" />
+            <span>daily</span>
+            <span className="text-(--session-muted)">set</span>
+          </span>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight">운동 라이브러리</h1>
         {libraryState.status === "success" &&
           libraryState.source === "builtin" &&
           libraryState.message && (
-            <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-primary/10 border border-primary/30 rounded text-xs text-primary">
+            <div className="mt-3 flex items-center gap-2 border-l-2 border-(--session-accent) pl-3 text-xs text-muted-foreground">
               {libraryState.message}
               <Button
                 variant="ghost"
-                className="justify-end text-xs h-auto py-2 ml-auto"
+                className="ml-auto h-11 px-2 text-xs underline underline-offset-4"
                 onClick={() => {
                   window.location.href = withBasePath("/settings/notion");
                 }}
@@ -174,19 +182,20 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
               </Button>
             </div>
           )}
+        <div className="mt-3 border-b border-foreground" />
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="sticky top-0 bg-background border-b z-10">
-          <div className="flex overflow-x-auto p-2 gap-2">
+        <div className="sticky top-0 z-10 border-b border-border bg-background">
+          <div className="flex overflow-x-auto px-4">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-4 py-2 rounded-lg whitespace-nowrap text-sm font-medium transition-colors ${
+                className={`h-11 whitespace-nowrap border-b-2 px-3 text-sm ${
                   selectedCategory === category
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground hover:bg-accent"
+                    ? "border-foreground font-bold"
+                    : "border-transparent text-muted-foreground"
                 }`}
               >
                 {category}
@@ -195,76 +204,77 @@ export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
           </div>
         </div>
 
-        <div className="p-4 space-y-2">
+        <div className="px-4 pb-4">
           {currentExercises.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
               {selectedCategory}에 등록된 운동이 없습니다
             </p>
           ) : (
-            currentExercises.map((exercise) => (
-              <div
-                key={exercise.id}
-                onClick={() => toggleExerciseSelection(exercise.id)}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  selectedExercises.has(exercise.id)
-                    ? "bg-accent border-primary"
-                    : "bg-card hover:bg-accent"
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-foreground">
+            currentExercises.map((exercise, index) => {
+              const isSelected = selectedExercises.has(exercise.id);
+              const subtitle = [exercise.equipment, exercise.primaryEffect]
+                .filter(Boolean)
+                .join(" · ");
+
+              return (
+                <button
+                  key={exercise.id}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => toggleExerciseSelection(exercise.id)}
+                  className="relative flex min-h-14 w-full items-center gap-3 border-b border-border py-2 text-left"
+                >
+                  {isSelected && (
+                    <>
+                      <span className="pointer-events-none absolute inset-0 -mx-4 bg-(--session-accent)/20" />
+                      <span className="pointer-events-none absolute inset-y-0 -left-4 w-1 bg-(--session-accent)" />
+                    </>
+                  )}
+                  <span
+                    className={`relative w-6 shrink-0 text-sm tabular-nums ${isSelected ? "font-bold" : "text-muted-foreground"}`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <span className="relative h-6 shrink-0 border-l border-border" />
+                  <span className="relative min-w-0 flex-1">
+                    <span className="block truncate text-lg font-bold tracking-tight">
                       {exercise.name}
-                    </h3>
-                    <div className="flex gap-2 mt-1">
-                      {exercise.equipment && (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                          {exercise.equipment}
-                        </span>
-                      )}
-                      {exercise.primaryEffect && (
-                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
-                          {exercise.primaryEffect}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="ml-2">
-                    {selectedExercises.has(exercise.id) && (
-                      <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                        <svg
-                          className="w-4 h-4 text-primary-foreground"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      </div>
+                    </span>
+                    {subtitle && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {subtitle}
+                      </span>
                     )}
-                  </div>
-                </div>
-              </div>
-            ))
+                  </span>
+                  <span
+                    className={`relative flex size-7 shrink-0 items-center justify-center rounded-full border ${
+                      isSelected
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border"
+                    }`}
+                  >
+                    {isSelected && <Check className="size-4" />}
+                  </span>
+                </button>
+              );
+            })
           )}
         </div>
       </div>
 
-      <div className="border-t p-4 bg-background">
+      <div className="border-t border-border px-4 py-4 bg-background">
         {validationError && (
-          <div className="mb-3 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-            <p className="text-sm text-destructive">{validationError}</p>
-          </div>
+          <p className="mb-3 border-l-2 border-destructive pl-3 text-sm text-destructive">
+            {validationError}
+          </p>
         )}
         <Button
-          className="w-full"
+          className={`h-14 w-full text-lg font-bold ${
+            selectedExercises.size === 0
+              ? "border border-foreground bg-transparent text-foreground hover:bg-transparent"
+              : "bg-(--session-accent) text-zinc-900 hover:bg-(--session-accent)/90"
+          }`}
           onClick={handleConfirmSelection}
-          variant={selectedExercises.size === 0 ? "outline" : "default"}
         >
           선택 완료 ({selectedExercises.size})
         </Button>

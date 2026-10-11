@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -10,25 +11,14 @@ import {
 } from "@/components/ui/sheet";
 import type { Session, SessionMetadata, DateInfo } from "./types";
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Moon, Sun, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
+import { SessionClock } from "./SessionClock";
 
 const HEADER_TEXT_BUTTON =
-  "h-11 min-w-11 gap-1 rounded-none px-2 text-xs font-semibold tracking-[0.1em]";
-
-function formatClock(seconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
-  const mm = String(minutes).padStart(2, "0");
-  const ss = String(secs).padStart(2, "0");
-
-  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
-}
+  "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
 
 function formatSessionDateLabel(startedAt: string): string {
   const date = new Date(startedAt);
@@ -51,7 +41,6 @@ export function HeaderControls({
   showHistory,
   setShowHistory,
   historyVersion,
-  currentDurationSeconds,
   onHistoryChanged,
   onStartNewSession,
 }: {
@@ -64,7 +53,6 @@ export function HeaderControls({
   showHistory: boolean;
   setShowHistory: (show: boolean) => void;
   historyVersion: number;
-  currentDurationSeconds: number;
   onHistoryChanged?: () => void;
   onStartNewSession: () => void;
 }) {
@@ -219,9 +207,11 @@ export function HeaderControls({
   return (
     <>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between px-4">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em]">
-            Daily Set
+        <div className="flex min-h-14 items-center justify-between px-4">
+          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
+            <span className="size-2 rounded-full bg-(--session-accent)" />
+            <span>daily</span>
+            <span className="text-(--session-muted)">set</span>
           </span>
           <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
@@ -230,9 +220,20 @@ export function HeaderControls({
                   기록
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="h-[85vh]">
-                <SheetHeader>
-                  <SheetTitle>전체 운동 기록</SheetTitle>
+              <SheetContent
+                side="bottom"
+                showCloseButton={false}
+                className="session-surface session-font h-[85vh]"
+              >
+                <SheetHeader className="flex-row items-center justify-between pb-0">
+                  <SheetTitle className="text-2xl font-bold tracking-tight">
+                    전체 운동 기록
+                  </SheetTitle>
+                  <SheetClose asChild>
+                    <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                      닫기
+                    </Button>
+                  </SheetClose>
                 </SheetHeader>
                 <div className="mt-4 overflow-y-auto h-full pb-20">
                   <WorkoutHistoryClient
@@ -269,11 +270,11 @@ export function HeaderControls({
               </Button>
 
               {isMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-popover rounded-lg shadow-lg border border-border py-2 z-50">
+                <div className="absolute right-0 top-full z-50 mt-2 w-64 border border-foreground bg-background">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-3 h-3 rounded-full ${
+                        className={`size-2 rounded-full ${
                           notionReady ? "bg-green-500" : "bg-red-500"
                         }`}
                       />
@@ -285,7 +286,7 @@ export function HeaderControls({
 
                   {themeMounted && (
                     <div className="px-4 py-3 border-b border-border">
-                      <span className="text-sm font-medium mb-2 block">
+                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
                         테마
                       </span>
                       <div
@@ -295,24 +296,25 @@ export function HeaderControls({
                       >
                         {(
                           [
-                            { value: "light", icon: Sun, label: "라이트" },
-                            { value: "dark", icon: Moon, label: "다크" },
-                            { value: "system", icon: Monitor, label: "시스템" },
+                            { value: "light", label: "라이트" },
+                            { value: "dark", label: "다크" },
+                            { value: "system", label: "시스템" },
                           ] as const
-                        ).map(({ value, icon: Icon, label }) => (
-                          <Button
+                        ).map(({ value, label }) => (
+                          <button
                             key={value}
                             type="button"
-                            variant={theme === value ? "default" : "outline"}
-                            size="sm"
-                            className="h-auto flex-col gap-1 py-2 px-1"
+                            className={`h-11 border text-sm font-semibold ${
+                              theme === value
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-border"
+                            }`}
                             aria-label={label}
                             aria-pressed={theme === value}
                             onClick={() => setTheme(value)}
                           >
-                            <Icon className="size-4" />
-                            <span className="text-xs">{label}</span>
-                          </Button>
+                            {label}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -321,7 +323,7 @@ export function HeaderControls({
                   <div className="px-2 py-1">
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-sm h-auto py-2"
+                      className="h-11 w-full justify-start rounded-none text-sm font-semibold"
                       onClick={() => {
                         window.location.href = withBasePath("/settings/notion");
                         setIsMenuOpen(false);
@@ -331,7 +333,7 @@ export function HeaderControls({
                     </Button>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-sm h-auto py-2"
+                      className="h-11 w-full justify-start rounded-none text-sm font-semibold"
                       onClick={() => {
                         fetch(withBasePath("/api/notion/disconnect"), {
                           method: "POST",
@@ -383,7 +385,7 @@ export function HeaderControls({
             />
           </div>
           <div className="min-w-0 flex-3 whitespace-nowrap pb-2 text-right text-2xl font-bold tabular-nums leading-none">
-            {formatClock(currentDurationSeconds)}
+            <SessionClock startedAt={sessionMetadata?.startedAt ?? null} />
           </div>
         </div>
 

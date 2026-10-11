@@ -162,6 +162,36 @@ export function getExerciseElapsedSeconds(
   );
 }
 
+export function switchActiveExerciseTimer(
+  timers: ExerciseTimers,
+  prevActiveId: string | null,
+  nextActiveId: string | null,
+  nowMs: number = Date.now(),
+): ExerciseTimers {
+  let changed = false;
+  const next = { ...timers };
+
+  if (prevActiveId && next[prevActiveId]?.status === "running") {
+    next[prevActiveId] = pauseExerciseTimer(next[prevActiveId], nowMs);
+    changed = true;
+  }
+
+  if (nextActiveId) {
+    const existing = next[nextActiveId];
+    if (existing) {
+      if (existing.status !== "running") {
+        next[nextActiveId] = resumeExerciseTimer(existing, nowMs);
+        changed = true;
+      }
+    } else {
+      next[nextActiveId] = createRunningExerciseTimer(nowMs);
+      changed = true;
+    }
+  }
+
+  return changed ? next : timers;
+}
+
 export function reconcileStoredExerciseTimers(
   timers: ExerciseTimers,
 ): ExerciseTimers {
