@@ -163,7 +163,6 @@ export function WorkoutHistoryClient({
 
     localStorage.setItem(sessionKey, JSON.stringify(updatedSessions));
     onHistoryChanged?.();
-    console.log("onHistoryChanged exists?", !!onHistoryChanged);
   }
 
   // 터치 시작 이벤트
