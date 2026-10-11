@@ -34,13 +34,12 @@ import {
   getPreviousSets,
   type PreviousSets,
 } from "@/lib/previous-record";
-import { useTimerTick } from "@/hooks/useTimerTick";
 import {
   createRunningExerciseTimer,
-  getExerciseElapsedSeconds,
   pauseExerciseTimer,
   resumeExerciseTimer,
 } from "@/lib/timer";
+import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -74,18 +73,6 @@ function getCompletedSetCount(exercise: Exercise): number {
 
 function isExerciseCompleted(exercise: Exercise): boolean {
   return exercise.sets.length > 0 && exercise.sets.every((set) => set.done);
-}
-
-function formatElapsedTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-
-  if (hours > 0) {
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  }
-
-  return `${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
 export function WorkoutSessionClient({
@@ -156,13 +143,6 @@ export function WorkoutSessionClient({
     openAccordionIndex === null
       ? null
       : (exercises[openAccordionIndex]?.id ?? null);
-
-  useTimerTick(activeExerciseId !== null);
-
-  const displayElapsedSeconds: Record<string, number> = {};
-  for (const [exerciseId, timerState] of Object.entries(exerciseTimers)) {
-    displayElapsedSeconds[exerciseId] = getExerciseElapsedSeconds(timerState);
-  }
 
   useEffect(() => {
     const prevActiveExerciseId = prevActiveExerciseIdRef.current;
@@ -306,12 +286,7 @@ export function WorkoutSessionClient({
                           )}
                         </div>
                       </div>
-                      {displayElapsedSeconds[ex.id] !== undefined &&
-                        displayElapsedSeconds[ex.id] > 0 && (
-                          <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
-                            {formatElapsedTime(displayElapsedSeconds[ex.id])}
-                          </span>
-                        )}
+                      <ExerciseElapsedTime timer={exerciseTimers[ex.id]} />
                     </div>
                   ) : (
                     <div className="flex w-full min-w-0 items-center gap-3">
