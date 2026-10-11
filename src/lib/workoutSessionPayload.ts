@@ -5,7 +5,7 @@ import { Exercises, SavedExercise, Session } from "@/app/types";
  * workout.sessions.v1에 저장되는 형태와 동일하다.
  */
 export function createLocalExercisesPayload(
-  exercises: Exercises
+  exercises: Exercises,
 ): (SavedExercise & { part: string })[] {
   return exercises
     .map((ex) => {
@@ -93,7 +93,7 @@ export function computeHistoryDirty(
  * done=true && synced=false인 세트만 추출하여 Notion 동기화용 payload를 생성한다.
  */
 export function createNotionExercisesPayload(
-  exercises: Exercises
+  exercises: Exercises,
 ): (SavedExercise & {
   part: string;
   exercisePageId?: string;
@@ -134,7 +134,7 @@ export function markSyncedSets(exercises: Exercises): Exercises {
   return exercises.map((ex) => ({
     ...ex,
     sets: ex.sets.map((set) =>
-      set.done && !set.synced ? { ...set, synced: true } : set
+      set.done && !set.synced ? { ...set, synced: true } : set,
     ),
   }));
 }
