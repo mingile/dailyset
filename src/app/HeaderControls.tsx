@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -232,9 +233,20 @@ export function HeaderControls({
                   기록
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="h-[85vh]">
-                <SheetHeader>
-                  <SheetTitle>전체 운동 기록</SheetTitle>
+              <SheetContent
+                side="bottom"
+                showCloseButton={false}
+                className="session-surface session-font h-[85vh]"
+              >
+                <SheetHeader className="flex-row items-center justify-between pb-0">
+                  <SheetTitle className="text-2xl font-bold tracking-tight">
+                    전체 운동 기록
+                  </SheetTitle>
+                  <SheetClose asChild>
+                    <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                      닫기
+                    </Button>
+                  </SheetClose>
                 </SheetHeader>
                 <div className="mt-4 overflow-y-auto h-full pb-20">
                   <WorkoutHistoryClient
