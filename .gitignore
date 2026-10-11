@@ -51,3 +51,6 @@ docs/
 .claude/
 skill.md
 Claude outputs/
+
+notion-template-build-guide.html
+public/ui_reference.png
