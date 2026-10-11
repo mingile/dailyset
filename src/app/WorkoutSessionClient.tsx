@@ -24,9 +24,14 @@ import {
   ExerciseTimers,
 } from "./types";
 import { useEffect, useState, useRef } from "react";
-import { TrashIcon, Plus, CheckCircle2 } from "lucide-react";
+import {
+  TrashIcon,
+  Plus,
+  CheckCircle2,
+  Check,
+  ChevronDown,
+} from "lucide-react";
 import { convertInputToKg } from "@/lib/weightUnit";
-import { nextWeight } from "@/lib/weightUnit";
 import { useExerciseLibrary } from "@/hooks/useExerciseLibrary";
 import { groupExercisesByCategory } from "@/lib/library";
 import { getPreviousRecord, createDefaultSet } from "@/lib/previous-record";
@@ -56,22 +61,20 @@ const EQUIPMENT_LABELS: Record<string, string> = {
   dumbbell: "덤벨",
 };
 
+const SET_ROW_GRID = "grid-cols-[2.75rem_4rem_minmax(0,1fr)_4rem_2.75rem]";
+
 function parseRepsInput(value: string): number | null {
   const trimmed = value.trim();
   if (!/^\d+$/.test(trimmed)) return null;
   return Number(trimmed);
 }
 
-function getCompletedMainSetCount(exercise: Exercise): number {
-  return exercise.sets.filter(
-    (set) => (set.setType ?? "main") === "main" && set.done,
-  ).length;
+function getCompletedSetCount(exercise: Exercise): number {
+  return exercise.sets.filter((set) => set.done).length;
 }
 
 function isExerciseCompleted(exercise: Exercise): boolean {
-  const completedMainSets = getCompletedMainSetCount(exercise);
-  const targetMainSets = exercise.targetMainSetCount || 0;
-  return completedMainSets >= targetMainSets && targetMainSets > 0;
+  return exercise.sets.length > 0 && exercise.sets.every((set) => set.done);
 }
 
 function formatElapsedTime(seconds: number): string {
@@ -98,8 +101,6 @@ export function WorkoutSessionClient({
   changeEquipment,
   changeUnit,
   changeSetType,
-  changeTargetMainSetCount,
-  changeTargetWarmupSetCount,
   sessionMetadata,
   exerciseTimers,
   onExerciseTimersChange,
@@ -219,16 +220,39 @@ export function WorkoutSessionClient({
     });
   }, [exercises, openAccordionIndex]);
 
+  function changeSetTotal(exIdx: number, ex: Exercise, draft: string) {
+    const nextTotal = parseRepsInput(draft);
+    if (nextTotal === null || nextTotal < 1) return;
+
+    const currentTotal = ex.sets.length;
+    if (nextTotal > currentTotal) {
+      for (let count = currentTotal; count < nextTotal; count++) {
+        addSet(exIdx);
+      }
+      return;
+    }
+
+    let removable = currentTotal - nextTotal;
+    let remaining = currentTotal;
+    for (let idx = currentTotal - 1; idx >= 0; idx--) {
+      if (removable <= 0 || remaining <= 1 || ex.sets[idx].done) break;
+      deleteSet(ex.id, idx);
+      removable--;
+      remaining--;
+    }
+  }
+
   return (
     <main className="session-font px-4 py-2 space-y-2">
       <div className="border-t border-border">
         {exercises.map((ex, i) => {
           const completed = isExerciseCompleted(ex);
-          const completedCount = getCompletedMainSetCount(ex);
-          const targetCount = ex.targetMainSetCount || 0;
+          const completedCount = getCompletedSetCount(ex);
+          const targetCount = ex.sets.length;
           const isActive = openAccordionIndex === i;
           const currentSetIndex = ex.sets.findIndex((set) => !set.done);
           const allSetsDone = ex.sets.length > 0 && currentSetIndex === -1;
+          const setTotal = ex.sets.length;
           const currentSetIdx = allSetsDone
             ? ex.sets.length - 1
             : currentSetIndex;
@@ -237,13 +261,6 @@ export function WorkoutSessionClient({
           const currentDisplay = currentSet
             ? displayWeightUnit(currentSet.weight, currentSet.unit)
             : null;
-          const metaLine = [
-            currentSet ? EQUIPMENT_LABELS[currentSet.equipment] : undefined,
-            ex.part,
-          ]
-            .filter(Boolean)
-            .join(" · ");
-
           return (
             <Accordion
               key={ex.id}
@@ -259,7 +276,7 @@ export function WorkoutSessionClient({
                 className="border-b border-border last:border-b"
               >
                 <AccordionTrigger
-                  className={`min-w-0 hover:no-underline ${isActive ? "items-start py-5" : "items-center py-4"}`}
+                  className={`min-w-0 hover:no-underline ${isActive ? "items-start pb-1 pt-5" : "items-center py-4"}`}
                 >
                   {isActive ? (
                     <div className="flex w-full min-w-0 items-start justify-between gap-3">
@@ -276,11 +293,6 @@ export function WorkoutSessionClient({
                             <CheckCircle2 className="h-5 w-5 shrink-0" />
                           )}
                         </div>
-                        {metaLine && (
-                          <div className="text-sm text-muted-foreground">
-                            {metaLine}
-                          </div>
-                        )}
                       </div>
                       {displayElapsedSeconds[ex.id] !== undefined &&
                         displayElapsedSeconds[ex.id] > 0 && (
@@ -310,178 +322,198 @@ export function WorkoutSessionClient({
                   )}
                 </AccordionTrigger>
 
+                {isActive && (
+                  <div className="flex items-center gap-1 pb-4 text-sm text-muted-foreground">
+                    <select
+                      aria-label="현재 세트 기구"
+                      disabled={!currentSet}
+                      className="-my-2 field-sizing-content cursor-pointer appearance-none rounded-none border-0 bg-transparent py-2 text-sm text-muted-foreground underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={currentSet?.equipment ?? ""}
+                      onChange={(e) =>
+                        changeEquipment(i, currentSetIdx, e.target.value)
+                      }
+                    >
+                      <option value="">기구 선택</option>
+                      {Object.entries(EQUIPMENT_LABELS).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                    {ex.part && (
+                      <>
+                        <span>·</span>
+                        <span>{ex.part}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <AccordionContent className="pb-3">
-                  <div className="mb-4 grid grid-cols-[1.3fr_1fr_1fr] items-end border-b border-border pb-4">
-                    <div className="min-w-0 pr-2">
-                      <InlineNumberField
-                        value={
-                          currentDisplay
-                            ? String(currentDisplay.displayWeight)
-                            : "—"
-                        }
-                        inputMode="decimal"
-                        disabled={!currentSet}
-                        ariaLabel="현재 세트 무게"
-                        className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
-                        onCommit={(draft) => {
-                          if (!currentSet) return;
-                          const kg = convertInputToKg(draft, currentSet.unit);
-                          if (kg === null) return;
-                          changeWeight(i, currentSetIdx, kg);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        disabled={!currentSet}
-                        aria-label="무게 단위 전환"
-                        className="-mb-2 block w-full py-2 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
-                        onClick={() => {
-                          if (!currentSet) return;
-                          changeUnit(
-                            i,
-                            currentSetIdx,
-                            currentSet.unit === "kg" ? "lb" : "kg",
-                          );
-                        }}
-                      >
-                        <span className="underline decoration-dotted underline-offset-4">
-                          {currentDisplay?.displayUnit ?? "kg"}
-                        </span>
-                      </button>
-                    </div>
-                    <div className="min-w-0 border-l border-border px-2">
-                      <InlineNumberField
-                        value={currentSet ? String(currentSet.reps) : "—"}
-                        inputMode="numeric"
-                        disabled={!currentSet}
-                        ariaLabel="현재 세트 횟수"
-                        className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
-                        onCommit={(draft) => {
-                          if (!currentSet) return;
-                          const nextReps = parseRepsInput(draft);
-                          if (nextReps === null) return;
-                          changeReps(
-                            i,
-                            currentSetIdx,
-                            nextReps - currentSet.reps,
-                          );
-                        }}
-                      />
-                      <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                        reps
+                  <div className="mb-4 border-b border-border pb-4">
+                    <div className="grid grid-cols-[1.3fr_1fr_1fr] items-end">
+                      <div className="min-w-0 pr-2">
+                        <InlineNumberField
+                          value={
+                            currentDisplay
+                              ? String(currentDisplay.displayWeight)
+                              : "—"
+                          }
+                          inputMode="decimal"
+                          disabled={!currentSet}
+                          ariaLabel="현재 세트 무게"
+                          className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
+                          onCommit={(draft) => {
+                            if (!currentSet) return;
+                            const kg = convertInputToKg(draft, currentSet.unit);
+                            if (kg === null) return;
+                            changeWeight(i, currentSetIdx, kg);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={!currentSet}
+                          aria-label="무게 단위 전환"
+                          className="-mb-2 block w-full py-2 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
+                          onClick={() => {
+                            if (!currentSet) return;
+                            changeUnit(
+                              i,
+                              currentSetIdx,
+                              currentSet.unit === "kg" ? "lb" : "kg",
+                            );
+                          }}
+                        >
+                          <span className="underline decoration-dotted underline-offset-4">
+                            {currentDisplay?.displayUnit ?? "kg"}
+                          </span>
+                        </button>
+                      </div>
+                      <div className="min-w-0 border-l border-border px-2">
+                        <InlineNumberField
+                          value={currentSet ? String(currentSet.reps) : "—"}
+                          inputMode="numeric"
+                          disabled={!currentSet}
+                          ariaLabel="현재 세트 횟수"
+                          className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
+                          onCommit={(draft) => {
+                            if (!currentSet) return;
+                            const nextReps = parseRepsInput(draft);
+                            if (nextReps === null) return;
+                            changeReps(
+                              i,
+                              currentSetIdx,
+                              nextReps - currentSet.reps,
+                            );
+                          }}
+                        />
+                        <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                          reps
+                        </div>
+                      </div>
+                      <div className="min-w-0 border-l border-border pl-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                            set
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="세트 추가"
+                            className="-my-1 flex size-9 items-center justify-center rounded-full border border-border"
+                            onClick={() => addSet(i)}
+                          >
+                            <Plus className="size-4" />
+                          </button>
+                        </div>
+                        <div className="mt-1 flex items-center whitespace-nowrap text-lg font-bold tabular-nums">
+                          {currentSet ? (
+                            <>
+                              <span
+                                className={
+                                  allSetsDone
+                                    ? "text-muted-foreground"
+                                    : "rounded-sm bg-(--session-accent) px-1 text-zinc-900"
+                                }
+                              >
+                                {String(
+                                  allSetsDone
+                                    ? ex.sets.length
+                                    : currentSetIndex + 1,
+                                ).padStart(2, "0")}
+                              </span>
+                              <span className="px-1 text-muted-foreground">
+                                /
+                              </span>
+                              <div className="min-w-0 flex-1 text-muted-foreground">
+                                <InlineNumberField
+                                  value={String(setTotal).padStart(2, "0")}
+                                  inputMode="numeric"
+                                  hint
+                                  ariaLabel="목표 세트 수"
+                                  className="py-1 text-lg font-bold tabular-nums"
+                                  onCommit={(draft) =>
+                                    changeSetTotal(i, ex, draft)
+                                  }
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="min-w-0 border-l border-border pl-2">
-                      <div className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                        set
-                      </div>
-                      <div className="mt-1 whitespace-nowrap text-lg font-bold tabular-nums">
-                        {currentSet ? (
-                          <>
-                            <span
-                              className={
-                                allSetsDone
-                                  ? "text-muted-foreground"
-                                  : "rounded-sm bg-(--session-accent) px-1 text-zinc-900"
-                              }
-                            >
-                              {String(
-                                allSetsDone
-                                  ? ex.sets.length
-                                  : currentSetIndex + 1,
-                              ).padStart(2, "0")}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {" "}
-                              / {String(ex.sets.length).padStart(2, "0")}
-                            </span>
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                    </div>
+                    <input
+                      type="text"
+                      aria-label="현재 세트 메모"
+                      disabled={!currentSet}
+                      className="mt-4 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-2 text-sm outline-none focus:border-(--session-accent)"
+                      value={currentSet?.memo ?? ""}
+                      onChange={(e) =>
+                        changeMemo(i, currentSetIdx, e.target.value)
+                      }
+                      placeholder="세트 메모"
+                    />
                   </div>
-                  <div className="mb-3 space-y-2">
-                    <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
-                      <span className="text-sm text-muted-foreground">
-                        목표 웜업세트
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => changeTargetWarmupSetCount(i, -1)}
-                        >
-                          -
-                        </Button>
-                        <span className="w-8 text-center font-semibold">
-                          {ex.targetWarmupSetCount || 0}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => changeTargetWarmupSetCount(i, +1)}
-                        >
-                          +
-                        </Button>
-                      </div>
+                  <div>
+                    <div
+                      className={`grid ${SET_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground`}
+                    >
+                      <span className="pl-2">Set</span>
+                      <span />
+                      <span>Weight</span>
+                      <span>Reps</span>
+                      <span className="text-center">Done</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
-                      <span className="text-sm text-muted-foreground">
-                        목표 본세트
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => changeTargetMainSetCount(i, -1)}
-                        >
-                          -
-                        </Button>
-                        <span className="w-8 text-center font-semibold">
-                          {ex.targetMainSetCount || 0}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => changeTargetMainSetCount(i, +1)}
-                        >
-                          +
-                        </Button>
-                      </div>
+                    <div className="border-t border-border">
+                      {ex.sets.map((set, j) => (
+                        <Row
+                          key={`${ex.id}-set-${j}`}
+                          exerciseIndex={i}
+                          setIndex={j}
+                          weight={set.weight}
+                          equipment={set.equipment}
+                          reps={set.reps}
+                          memo={set.memo || ""}
+                          done={set.done}
+                          setType={set.setType || "main"}
+                          isCurrent={!allSetsDone && j === currentSetIdx}
+                          exId={ex.id}
+                          deleteSet={deleteSet}
+                          onWeightChange={changeWeight}
+                          onRepsDelta={changeReps}
+                          onToggleDone={toggleDone}
+                          changeMemo={changeMemo}
+                          displayWeightUnit={displayWeightUnit}
+                          changeEquipment={changeEquipment}
+                          changeUnit={changeUnit}
+                          changeSetType={changeSetType}
+                          unit={set.unit}
+                        />
+                      ))}
                     </div>
-                  </div>
-                  <div className="space-y-3">
-                    {ex.sets.map((set, j) => (
-                      <Row
-                        key={`${ex.id}-set-${j}`}
-                        exerciseIndex={i}
-                        setIndex={j}
-                        weight={set.weight}
-                        equipment={set.equipment}
-                        reps={set.reps}
-                        memo={set.memo || ""}
-                        done={set.done}
-                        setType={set.setType || "main"}
-                        exId={ex.id}
-                        deleteSet={deleteSet}
-                        onWeightChange={changeWeight}
-                        onRepsDelta={changeReps}
-                        onToggleDone={toggleDone}
-                        changeMemo={changeMemo}
-                        displayWeightUnit={displayWeightUnit}
-                        nextWeight={nextWeight}
-                        changeEquipment={changeEquipment}
-                        changeUnit={changeUnit}
-                        changeSetType={changeSetType}
-                        unit={set.unit}
-                      />
-                    ))}
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -543,6 +575,8 @@ function InlineNumberField({
   disabled = false,
   ariaLabel,
   className,
+  suffix,
+  hint = false,
   onCommit,
 }: {
   value: string;
@@ -550,6 +584,8 @@ function InlineNumberField({
   disabled?: boolean;
   ariaLabel: string;
   className: string;
+  suffix?: string;
+  hint?: boolean;
   onCommit: (draft: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -575,7 +611,7 @@ function InlineNumberField({
         type="text"
         inputMode={inputMode}
         aria-label={ariaLabel}
-        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-accent) bg-transparent p-0 outline-none`}
+        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-accent) bg-transparent p-0 py-0! outline-none`}
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
         onFocus={(e) => e.target.select()}
@@ -600,10 +636,15 @@ function InlineNumberField({
       type="button"
       disabled={disabled}
       aria-label={ariaLabel}
-      className={`${className} block w-full truncate text-left`}
+      className={`${className} block w-full truncate text-left ${hint ? "underline decoration-dotted underline-offset-4" : ""}`}
       onClick={beginEdit}
     >
       {value}
+      {suffix && (
+        <span className="ml-1 text-xs font-normal uppercase text-muted-foreground">
+          {suffix}
+        </span>
+      )}
     </button>
   );
 }
@@ -617,6 +658,7 @@ function Row({
   reps,
   done,
   setType,
+  isCurrent,
   onWeightChange,
   onRepsDelta,
   onToggleDone,
@@ -624,7 +666,6 @@ function Row({
   changeMemo,
   deleteSet,
   displayWeightUnit,
-  nextWeight,
   changeEquipment,
   changeUnit,
   changeSetType,
@@ -638,6 +679,7 @@ function Row({
   reps: number;
   done: boolean;
   setType: "warmup" | "main";
+  isCurrent: boolean;
   onWeightChange: (exIdx: number, setIdx: number, nextWeight: number) => void;
   onRepsDelta: (exIdx: number, setIdx: number, delta: number) => void;
   onToggleDone: (exIdx: number, setIdx: number) => void;
@@ -648,11 +690,6 @@ function Row({
     weight: number,
     unit: "kg" | "lb",
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
-  nextWeight: (
-    weight: number,
-    equipment: string,
-    direction: "increase" | "decrease",
-  ) => number;
   changeEquipment: (exIdx: number, setIdx: number, equipment: string) => void;
   changeUnit: (exIdx: number, setIdx: number, unit: "kg" | "lb") => void;
   changeSetType: (
@@ -663,43 +700,22 @@ function Row({
   unit: "kg" | "lb";
 }) {
   const { displayWeight, displayUnit } = displayWeightUnit(weight, unit);
-  const [isEditingWeight, setIsEditingWeight] = useState(false);
-  const [draftWeight, setDraftWeight] = useState<string>(String(displayWeight));
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [isSwiping, setIsSwiping] = useState<boolean>(false);
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const setLabel = `세트 ${setIndex + 1}`;
 
-  useEffect(() => {
-    if (isEditingWeight) return;
-    setDraftWeight(String(displayWeight));
-  }, [displayWeight, isEditingWeight]);
-
-  useEffect(() => {
-    setIsCollapsed(done);
-  }, [done]);
-
-  function beginWeightEdit() {
-    setDraftWeight(String(displayWeight));
-    setIsEditingWeight(true);
-  }
-
-  function commitWeightEdit() {
-    const nextKg = convertInputToKg(draftWeight, unit);
-
-    if (nextKg === null) {
-      setDraftWeight(String(displayWeight));
-      setIsEditingWeight(false);
-      return;
-    }
-
+  function commitWeight(draft: string) {
+    const nextKg = convertInputToKg(draft, unit);
+    if (nextKg === null) return;
     onWeightChange(exerciseIndex, setIndex, nextKg);
-    setIsEditingWeight(false);
   }
 
-  function cancelWeightEdit() {
-    setDraftWeight(String(displayWeight));
-    setIsEditingWeight(false);
+  function commitReps(draft: string) {
+    const nextReps = parseRepsInput(draft);
+    if (nextReps === null) return;
+    onRepsDelta(exerciseIndex, setIndex, nextReps - reps);
   }
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -740,207 +756,122 @@ function Row({
     setSwipeOffset(0);
   }
 
-  function handleCollapse() {
-    setIsCollapsed(!isCollapsed);
-  }
-
   return (
     <div
-      className="relative overflow-hidden rounded-xl"
+      className="relative overflow-hidden"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-4">
-        <TrashIcon className="size-6 text-white" />
-      </div>
+      {swipeOffset < 0 && (
+        <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-4">
+          <TrashIcon className="size-6 text-white" />
+        </div>
+      )}
       <div
-        className={`rounded-xl border bg-card p-3 space-y-3 ${isCollapsed ? "bg-green-100 dark:bg-green-950/40" : "bg-card"}`}
+        className={`relative border-b border-border ${swipeOffset < 0 ? "bg-background" : ""}`}
         style={{
           transform: `translateX(${swipeOffset}px)`,
-          transition: isCollapsed ? "none" : "all 0.3s ease-in-out",
+          transition: "all 0.3s ease-in-out",
         }}
       >
-        {!isCollapsed && (
-          <div className="flex items-center gap-1 mb-2">
-            <Button
-              type="button"
-              variant={setType === "warmup" ? "default" : "outline"}
-              className="h-6 px-2 text-xs"
-              onClick={() => changeSetType(exerciseIndex, setIndex, "warmup")}
-            >
-              웜업
-            </Button>
-            <Button
-              type="button"
-              variant={setType === "main" ? "default" : "outline"}
-              className="h-6 px-2 text-xs"
-              onClick={() => changeSetType(exerciseIndex, setIndex, "main")}
-            >
-              본세트
-            </Button>
-          </div>
-        )}
-        <div className="flex items-center justify-between">
-          <div
-            className={`relative flex items-center gap-2 flex-wrap ${isCollapsed ? "text-foreground font-bold" : ""}`}
+        <div
+          className={`relative grid min-h-12 ${SET_ROW_GRID} items-center gap-1 px-1 ${done ? "text-muted-foreground" : ""}`}
+        >
+          {isCurrent && (
+            <>
+              <span className="pointer-events-none absolute inset-0 -z-10 bg-(--session-accent)/20" />
+              <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
+            </>
+          )}
+          <button
+            type="button"
+            aria-expanded={isDetailOpen}
+            aria-label={`${setLabel} 상세`}
+            className="flex h-12 items-center gap-0.5 pl-2 text-left tabular-nums"
+            onClick={() => setIsDetailOpen((open) => !open)}
+          >
+            <span className={`text-sm ${isCurrent ? "font-bold" : ""}`}>
+              {String(setIndex + 1).padStart(2, "0")}
+            </span>
+            <ChevronDown
+              className={`size-3 transition-transform ${isDetailOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          <button
+            type="button"
+            aria-label={`${setLabel} 타입 전환`}
+            className="flex h-12 items-center justify-center"
+            onClick={() =>
+              changeSetType(
+                exerciseIndex,
+                setIndex,
+                setType === "warmup" ? "main" : "warmup",
+              )
+            }
           >
             <span
-              className={
-                isCollapsed
-                  ? "text-green-700 dark:text-green-400"
-                  : "text-foreground"
-              }
+              className={`rounded-full border px-2 py-1 text-xs ${setType === "warmup" ? "border-foreground font-semibold" : "border-border"}`}
             >
-              세트 {setIndex + 1}
+              {setType === "warmup" ? "웜업" : "본세트"}
             </span>
-            {isCollapsed ? (
-              <div className="flex items-center gap-2 flex-wrap ml-auto text-green-700 dark:text-green-400">
-                <span className="font-semibold text-md">
-                  {displayWeight}
-                  {displayUnit} × {reps}회
-                </span>
-                {memo.trim() !== "" && (
-                  <span className="text-md text-green-800 dark:text-green-300 italic truncate max-w-[150px]">
-                    "{memo}"
-                  </span>
-                )}
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                className="ml-3 size-8"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsDeleteDialogOpen(true);
-                }}
-              >
-                <TrashIcon className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
-          <label
-            className={`flex items-center gap-2 text-sm text-muted-foreground ${isCollapsed ? "text-foreground" : ""}`}
+          </button>
+          <InlineNumberField
+            value={String(displayWeight)}
+            suffix={displayUnit}
+            inputMode="decimal"
+            ariaLabel={`${setLabel} 무게`}
+            className="py-3 text-xl font-semibold tabular-nums"
+            onCommit={commitWeight}
+          />
+          <InlineNumberField
+            value={String(reps)}
+            inputMode="numeric"
+            ariaLabel={`${setLabel} 횟수`}
+            className="py-3 text-xl font-semibold tabular-nums"
+            onCommit={commitReps}
+          />
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={done}
+            aria-label={`${setLabel} 완료`}
+            className="flex h-12 items-center justify-center text-foreground"
+            onClick={() => onToggleDone(exerciseIndex, setIndex)}
           >
-            {done ? "완료" : "완료 체크"}
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-primary"
-              checked={done}
-              onChange={() => onToggleDone(exerciseIndex, setIndex)}
-            />
-          </label>
+            {done ? (
+              <Check className="size-6" />
+            ) : (
+              <span className="size-6 rounded-full border-2 border-muted-foreground/60" />
+            )}
+          </button>
         </div>
-        {isCollapsed ? null : (
-          <>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-muted/50 p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">무게</span>
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      variant={unit === "kg" ? "default" : "outline"}
-                      className="h-5 px-2 text-xs"
-                      onClick={() => changeUnit(exerciseIndex, setIndex, "kg")}
-                    >
-                      kg
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={unit === "lb" ? "default" : "outline"}
-                      className="h-5 px-2 text-xs"
-                      onClick={() => changeUnit(exerciseIndex, setIndex, "lb")}
-                    >
-                      lb
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 px-3"
-                    onClick={() =>
-                      onWeightChange(
-                        exerciseIndex,
-                        setIndex,
-                        nextWeight(weight, equipment, "decrease"),
-                      )
-                    }
-                  >
-                    -
-                  </Button>
-                  {isEditingWeight ? (
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      step={displayUnit === "kg" ? "0.1" : "1"}
-                      className="flex-1 min-w-0 rounded-md border bg-background px-2 py-1 text-center text-base font-semibold outline-none focus:border-ring"
-                      value={draftWeight}
-                      onChange={(e) => setDraftWeight(e.currentTarget.value)}
-                      onFocus={(e) => e.target.select()}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.currentTarget.blur();
-                        }
-                        if (e.key === "Escape") {
-                          e.preventDefault();
-                          cancelWeightEdit();
-                        }
-                      }}
-                      onBlur={commitWeightEdit}
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      className="flex-1 min-w-0 text-md font-semibold truncate"
-                      onClick={beginWeightEdit}
-                    >
-                      {displayWeight}
-                      {displayUnit}
-                    </button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 px-3"
-                    onClick={() =>
-                      onWeightChange(
-                        exerciseIndex,
-                        setIndex,
-                        nextWeight(weight, equipment, "increase"),
-                      )
-                    }
-                  >
-                    +
-                  </Button>
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3">
-                <div className="text-xs text-muted-foreground mb-2">횟수</div>
-                <div className="flex items-center justify-between gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 px-3"
-                    onClick={() => onRepsDelta(exerciseIndex, setIndex, -1)}
-                  >
-                    -
-                  </Button>
-                  <div className="flex-1 text-center text-md font-semibold">
-                    {reps}회
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 px-3"
-                    onClick={() => onRepsDelta(exerciseIndex, setIndex, +1)}
-                  >
-                    +
-                  </Button>
-                </div>
+        {!isDetailOpen && memo.trim() !== "" && (
+          <div className="-mt-1 truncate px-3 pb-2 text-xs italic text-muted-foreground">
+            "{memo}"
+          </div>
+        )}
+        {isDetailOpen && (
+          <div className="space-y-3 px-3 pb-3 pt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">단위</span>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant={unit === "kg" ? "default" : "outline"}
+                  className="h-6 px-2 text-xs"
+                  onClick={() => changeUnit(exerciseIndex, setIndex, "kg")}
+                >
+                  kg
+                </Button>
+                <Button
+                  type="button"
+                  variant={unit === "lb" ? "default" : "outline"}
+                  className="h-6 px-2 text-xs"
+                  onClick={() => changeUnit(exerciseIndex, setIndex, "lb")}
+                >
+                  lb
+                </Button>
               </div>
             </div>
             <div>
@@ -952,11 +883,11 @@ function Row({
                 }
               >
                 <option value="">기구 선택</option>
-                <option value="cable-machine">케이블 머신</option>
-                <option value="smith-machine">스미스 머신</option>
-                <option value="plate-machine">원판 머신</option>
-                <option value="barbell">바벨</option>
-                <option value="dumbbell">덤벨</option>
+                {Object.entries(EQUIPMENT_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">
@@ -971,7 +902,16 @@ function Row({
                 placeholder="세트 메모"
               />
             </div>
-          </>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 text-xs text-destructive"
+              onClick={() => setIsDeleteDialogOpen(true)}
+            >
+              <TrashIcon className="size-4" />
+              세트 삭제
+            </Button>
+          </div>
         )}
       </div>
 
