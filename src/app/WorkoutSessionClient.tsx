@@ -48,6 +48,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const EQUIPMENT_LABELS: Record<string, string> = {
+  "cable-machine": "케이블 머신",
+  "smith-machine": "스미스 머신",
+  "plate-machine": "원판 머신",
+  barbell: "바벨",
+  dumbbell: "덤벨",
+};
+
 function getCompletedMainSetCount(exercise: Exercise): number {
   return exercise.sets.filter(
     (set) => (set.setType ?? "main") === "main" && set.done,
@@ -213,6 +221,21 @@ export function WorkoutSessionClient({
           const completedCount = getCompletedMainSetCount(ex);
           const targetCount = ex.targetMainSetCount || 0;
           const isActive = openAccordionIndex === i;
+          const currentSetIndex = ex.sets.findIndex((set) => !set.done);
+          const allSetsDone = ex.sets.length > 0 && currentSetIndex === -1;
+          const currentSet =
+            ex.sets.length === 0
+              ? null
+              : ex.sets[allSetsDone ? ex.sets.length - 1 : currentSetIndex];
+          const currentDisplay = currentSet
+            ? displayWeightUnit(currentSet.weight, currentSet.unit)
+            : null;
+          const metaLine = [
+            currentSet ? EQUIPMENT_LABELS[currentSet.equipment] : undefined,
+            ex.part,
+          ]
+            .filter(Boolean)
+            .join(" · ");
 
           return (
             <Accordion
@@ -228,36 +251,111 @@ export function WorkoutSessionClient({
                 value={`item-${i}`}
                 className="border-b border-border last:border-b"
               >
-                <AccordionTrigger className="min-w-0 items-center py-4 hover:no-underline">
-                  <div className="flex w-full min-w-0 items-center gap-3">
-                    <span className="w-6 shrink-0 text-sm tabular-nums text-muted-foreground">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="h-6 shrink-0 border-l border-border" />
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span className="truncate text-lg font-bold tracking-tight">
-                        {ex.name}
-                      </span>
-                      {completed && (
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-                      {isActive &&
-                        displayElapsedSeconds[ex.id] !== undefined &&
+                <AccordionTrigger
+                  className={`min-w-0 hover:no-underline ${isActive ? "items-start py-5" : "items-center py-4"}`}
+                >
+                  {isActive ? (
+                    <div className="flex w-full min-w-0 items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm tabular-nums text-muted-foreground">
+                          {String(i + 1).padStart(2, "0")} /{" "}
+                          {String(exercises.length).padStart(2, "0")}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="break-words text-3xl font-bold leading-tight tracking-tight">
+                            {ex.name}
+                          </span>
+                          {completed && (
+                            <CheckCircle2 className="h-5 w-5 shrink-0" />
+                          )}
+                        </div>
+                        {metaLine && (
+                          <div className="text-sm text-muted-foreground">
+                            {metaLine}
+                          </div>
+                        )}
+                      </div>
+                      {displayElapsedSeconds[ex.id] !== undefined &&
                         displayElapsedSeconds[ex.id] > 0 && (
-                          <span className="font-mono tabular-nums">
+                          <span className="shrink-0 font-mono text-sm tabular-nums text-muted-foreground">
                             {formatElapsedTime(displayElapsedSeconds[ex.id])}
                           </span>
                         )}
-                      <span className="tabular-nums uppercase tracking-wider">
+                    </div>
+                  ) : (
+                    <div className="flex w-full min-w-0 items-center gap-3">
+                      <span className="w-6 shrink-0 text-sm tabular-nums text-muted-foreground">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="h-6 shrink-0 border-l border-border" />
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="truncate text-lg font-bold tracking-tight">
+                          {ex.name}
+                        </span>
+                        {completed && (
+                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                        )}
+                      </div>
+                      <span className="shrink-0 text-sm tabular-nums uppercase tracking-wider text-muted-foreground">
                         {completedCount} / {targetCount} SETS
                       </span>
                     </div>
-                  </div>
+                  )}
                 </AccordionTrigger>
 
                 <AccordionContent className="pb-3">
+                  <div className="mb-4 grid grid-cols-[1.3fr_1fr_1fr] items-end border-b border-border pb-4">
+                    <div className="min-w-0 pr-2">
+                      <div
+                        className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
+                      >
+                        {currentDisplay ? currentDisplay.displayWeight : "—"}
+                      </div>
+                      <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                        {currentDisplay?.displayUnit ?? "kg"}
+                      </div>
+                    </div>
+                    <div className="min-w-0 border-l border-border px-2">
+                      <div
+                        className={`text-[2.75rem] font-bold leading-none tabular-nums ${allSetsDone ? "text-muted-foreground" : ""}`}
+                      >
+                        {currentSet ? currentSet.reps : "—"}
+                      </div>
+                      <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                        reps
+                      </div>
+                    </div>
+                    <div className="min-w-0 border-l border-border pl-2">
+                      <div className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                        set
+                      </div>
+                      <div className="mt-1 whitespace-nowrap text-lg font-bold tabular-nums">
+                        {currentSet ? (
+                          <>
+                            <span
+                              className={
+                                allSetsDone
+                                  ? "text-muted-foreground"
+                                  : "rounded-sm bg-(--session-accent) px-1 text-zinc-900"
+                              }
+                            >
+                              {String(
+                                allSetsDone
+                                  ? ex.sets.length
+                                  : currentSetIndex + 1,
+                              ).padStart(2, "0")}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {" "}
+                              / {String(ex.sets.length).padStart(2, "0")}
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="mb-3 space-y-2">
                     <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
                       <span className="text-sm text-muted-foreground">
