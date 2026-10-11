@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, M_PLUS_Rounded_1c } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
@@ -27,10 +27,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const mplusRounded = M_PLUS_Rounded_1c({
+  variable: "--font-brand",
+  subsets: ["latin"],
+  weight: "500",
+});
+
 const suit = localFont({
   src: "../fonts/SUIT-Variable.woff2",
   variable: "--font-session",
   weight: "100 900",
+  display: "swap",
+});
+
+const blackSans = localFont({
+  src: "../fonts/BlackHanSans-Regular.ttf",
+  variable: "--font-session",
+  weight: "100 900",
+  display: "swap",
+});
+
+const kyobo2019 = localFont({
+  src: "../fonts/Kyobo Handwriting Font 2019.otf",
+  variable: "--font-session",
+  weight: "200 900",
   display: "swap",
 });
 
@@ -87,7 +107,7 @@ export default function RootLayout({
         <link rel="manifest" href={withBasePath("/manifest.webmanifest")} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${suit.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${mplusRounded.variable} ${kyobo2019.variable} antialiased`}
       >
         <ThemeSwitcher attribute="class">
           {children}

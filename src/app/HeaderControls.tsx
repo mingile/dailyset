@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
 
 const HEADER_TEXT_BUTTON =
-  "h-11 min-w-11 gap-1 rounded-none px-2 text-xs font-semibold tracking-[0.1em]";
+  "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
 
 function formatClock(seconds: number): string {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -219,9 +219,11 @@ export function HeaderControls({
   return (
     <>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between px-4">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em]">
-            Daily Set
+        <div className="flex min-h-14 items-center justify-between px-4">
+          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
+            <span className="size-2 rounded-full bg-(--session-accent)" />
+            <span>daily</span>
+            <span className="text-(--session-muted)">set</span>
           </span>
           <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
