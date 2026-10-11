@@ -1075,7 +1075,7 @@ export function RootClient() {
 
   if (entryMode === "session") {
     return (
-      <div className="flex flex-col h-100vh min-h-screen">
+      <div className="session-surface session-font flex flex-col h-100vh min-h-screen">
         <div className="pb-2">
           <HeaderControls
             notionReady={dbConnected}

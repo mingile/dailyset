@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -24,6 +25,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const suit = localFont({
+  src: "../fonts/SUIT-Variable.woff2",
+  variable: "--font-session",
+  weight: "100 900",
+  display: "swap",
 });
 
 const siteUrl =
@@ -79,7 +87,7 @@ export default function RootLayout({
         <link rel="manifest" href={withBasePath("/manifest.webmanifest")} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${suit.variable} antialiased`}
       >
         <ThemeSwitcher attribute="class">
           {children}

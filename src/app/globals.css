@@ -128,6 +128,35 @@
   }
 }
 
+/* 세션 화면 전용 토큰. #F2EC00(accent)은 현재 세트 / 입력 위치 표시에만 쓴다. */
+:root {
+  --session-ink: #18181b;
+  --session-surface: #f5f3ef;
+  --session-muted: #71717a;
+  --session-accent: #f2ec00;
+}
+
+/* 다크모드는 기존 shadcn 다크 토큰을 따른다. 세션 다크 팔레트는 Block 7에서 점검 */
+.dark {
+  --session-ink: var(--foreground);
+  --session-surface: var(--background);
+  --session-muted: var(--muted-foreground);
+}
+
+/* 세션 화면 폰트. 폰트 교체는 layout.tsx의 --font-session 한 곳에서만 한다 */
+.session-font {
+  font-family: var(--font-session), var(--font-geist-sans), sans-serif;
+}
+
+/* 세션 Page Surface: 기존 컴포넌트가 쓰는 shadcn 토큰을 이 범위 안에서만 세션 팔레트로 연결 */
+.session-surface {
+  --background: var(--session-surface);
+  --foreground: var(--session-ink);
+  --muted-foreground: var(--session-muted);
+  background-color: var(--session-surface);
+  color: var(--session-ink);
+}
+
 /* 스크롤바 숨기기 */
 .scrollbar-hide {
   -ms-overflow-style: none;

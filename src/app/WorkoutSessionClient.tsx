@@ -206,7 +206,7 @@ export function WorkoutSessionClient({
   }, [exercises, openAccordionIndex]);
 
   return (
-    <main className="p-2 space-y-2">
+    <main className="session-font p-2 space-y-2">
       {exercises.map((ex, i) => {
         const completed = isExerciseCompleted(ex);
         const completedCount = getCompletedMainSetCount(ex);
