@@ -16,16 +16,26 @@ import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+function formatClock(seconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const secs = totalSeconds % 60;
+  const mm = String(minutes).padStart(2, "0");
+  const ss = String(secs).padStart(2, "0");
 
-  if (hours > 0) {
-    return `${hours}시간 ${remainingMinutes}분`;
-  }
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
+}
 
-  return `${minutes}분`;
+function formatSessionDateLabel(startedAt: string): string {
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const dayOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][
+    date.getDay()
+  ];
+
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()} ${dayOfWeek}`;
 }
 
 export function HeaderControls({
@@ -202,24 +212,12 @@ export function HeaderControls({
   }, [isMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b supports-[backdrop-filter]:bg-background/60">
-      <div className="px-2 py-2 space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <input
-              type="text"
-              value={sessionNameInput}
-              onChange={(e) => setSessionNameInput(e.target.value)}
-              onBlur={handleSessionNameBlur}
-              placeholder="세션 이름을 입력하세요"
-              className="w-full px-1 py-1.5 text-xl font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            {currentDurationSeconds > 0 && (
-              <div className="text-sm text-muted-foreground px-1">
-                {formatDuration(currentDurationSeconds)} 진행 중
-              </div>
-            )}
-          </div>
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="px-4 py-2 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em]">
+            Daily Set
+          </span>
           <div
             className="relative hover:bg-accent rounded-full p-1"
             ref={menuRef}
@@ -330,6 +328,29 @@ export function HeaderControls({
             )}
           </div>
         </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {sessionMetadata && (
+              <div className="px-1 text-sm text-muted-foreground">
+                {formatSessionDateLabel(sessionMetadata.startedAt)}
+              </div>
+            )}
+            <input
+              type="text"
+              value={sessionNameInput}
+              onChange={(e) => setSessionNameInput(e.target.value)}
+              onBlur={handleSessionNameBlur}
+              placeholder="세션 이름을 입력하세요"
+              className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="shrink-0 px-1 py-1 text-3xl font-bold tabular-nums leading-none">
+            {formatClock(currentDurationSeconds)}
+          </div>
+        </div>
+
+        <div className="border-b border-foreground" />
 
         <div className="flex items-center gap-2">
           <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
