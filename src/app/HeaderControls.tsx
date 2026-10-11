@@ -15,20 +15,10 @@ import { useTheme } from "next-themes";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
+import { SessionClock } from "./SessionClock";
 
 const HEADER_TEXT_BUTTON =
   "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
-
-function formatClock(seconds: number): string {
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const secs = totalSeconds % 60;
-  const mm = String(minutes).padStart(2, "0");
-  const ss = String(secs).padStart(2, "0");
-
-  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
-}
 
 function formatSessionDateLabel(startedAt: string): string {
   const date = new Date(startedAt);
@@ -51,7 +41,6 @@ export function HeaderControls({
   showHistory,
   setShowHistory,
   historyVersion,
-  currentDurationSeconds,
   onHistoryChanged,
   onStartNewSession,
 }: {
@@ -64,7 +53,6 @@ export function HeaderControls({
   showHistory: boolean;
   setShowHistory: (show: boolean) => void;
   historyVersion: number;
-  currentDurationSeconds: number;
   onHistoryChanged?: () => void;
   onStartNewSession: () => void;
 }) {
@@ -397,7 +385,7 @@ export function HeaderControls({
             />
           </div>
           <div className="min-w-0 flex-3 whitespace-nowrap pb-2 text-right text-2xl font-bold tabular-nums leading-none">
-            {formatClock(currentDurationSeconds)}
+            <SessionClock startedAt={sessionMetadata?.startedAt ?? null} />
           </div>
         </div>
 
