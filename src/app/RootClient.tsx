@@ -1076,21 +1076,19 @@ export function RootClient() {
   if (entryMode === "session") {
     return (
       <div className="session-surface session-font flex flex-col h-100vh min-h-screen">
-        <div className="pb-2">
-          <HeaderControls
-            notionReady={dbConnected}
-            setNotionReady={setDbConnected}
-            sessionMetadata={sessionMetadata}
-            changeSessionName={changeSessionName}
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
-            showHistory={showHistory}
-            setShowHistory={setShowHistory}
-            historyVersion={historyVersion}
-            currentDurationSeconds={currentDurationSeconds}
-            onHistoryChanged={onSavedHistory}
-          />
-        </div>
+        <HeaderControls
+          notionReady={dbConnected}
+          setNotionReady={setDbConnected}
+          sessionMetadata={sessionMetadata}
+          changeSessionName={changeSessionName}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          showHistory={showHistory}
+          setShowHistory={setShowHistory}
+          historyVersion={historyVersion}
+          currentDurationSeconds={currentDurationSeconds}
+          onHistoryChanged={onSavedHistory}
+        />
         {!showHistory && (
           <WorkoutSessionClient
             exercises={exercises}

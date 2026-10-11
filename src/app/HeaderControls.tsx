@@ -141,7 +141,7 @@ export function HeaderControls({
     const todayIndex = dateRange.findIndex((d) => d.isToday);
     if (todayIndex === -1) return;
 
-    const cardWidth = 50;
+    const cardWidth = 44;
     const gap = 4;
     const scrollPosition =
       (cardWidth + gap) * todayIndex -
@@ -212,225 +212,217 @@ export function HeaderControls({
   }, [isMenuOpen]);
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="px-4 py-2 space-y-3">
-        <div className="flex items-center justify-between">
+    <>
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex items-center justify-between px-4 py-1">
           <span className="text-xs font-semibold uppercase tracking-[0.2em]">
             Daily Set
           </span>
-          <div
-            className="relative hover:bg-accent rounded-full p-1"
-            ref={menuRef}
-          >
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="relative"
-            >
-              <Settings className="size-6" />
-              <div
-                className={`absolute top-1 right-1.25 w-2 h-2 rounded-full ${
-                  notionReady ? "bg-green-500" : "bg-red-500"
-                }`}
-              />
-            </Button>
-
-            {isMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-popover rounded-lg shadow-lg border border-border py-2 z-50">
-                <div className="px-4 py-3 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        notionReady ? "bg-green-500" : "bg-red-500"
-                      }`}
-                    />
-                    <span className="text-sm font-medium">
-                      Notion {notionReady ? "연결됨" : "연결 안됨"}
-                    </span>
-                  </div>
+          <div className="flex items-center gap-1">
+            <div className="px-1 text-xl font-bold tabular-nums leading-none">
+              {formatClock(currentDurationSeconds)}
+            </div>
+            <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="전체 운동 기록">
+                  <History className="size-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-[85vh]">
+                <SheetHeader>
+                  <SheetTitle>전체 운동 기록</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4 overflow-y-auto h-full pb-20">
+                  <WorkoutHistoryClient
+                    showHistory={true}
+                    historyVersion={historyVersion}
+                    selectedDate={null}
+                    notionReady={notionReady}
+                    onHistoryChanged={onHistoryChanged}
+                  />
                 </div>
+              </SheetContent>
+            </Sheet>
+            <div className="relative" ref={menuRef}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="relative"
+                aria-label="설정"
+              >
+                <Settings className="size-6" />
+                <div
+                  className={`absolute top-1 right-1.25 w-2 h-2 rounded-full ${
+                    notionReady ? "bg-green-500" : "bg-red-500"
+                  }`}
+                />
+              </Button>
 
-                {themeMounted && (
+              {isMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-popover rounded-lg shadow-lg border border-border py-2 z-50">
                   <div className="px-4 py-3 border-b border-border">
-                    <span className="text-sm font-medium mb-2 block">테마</span>
-                    <div
-                      className="grid grid-cols-3 gap-1"
-                      role="group"
-                      aria-label="테마 선택"
-                    >
-                      {(
-                        [
-                          { value: "light", icon: Sun, label: "라이트" },
-                          { value: "dark", icon: Moon, label: "다크" },
-                          { value: "system", icon: Monitor, label: "시스템" },
-                        ] as const
-                      ).map(({ value, icon: Icon, label }) => (
-                        <Button
-                          key={value}
-                          type="button"
-                          variant={theme === value ? "default" : "outline"}
-                          size="sm"
-                          className="h-auto flex-col gap-1 py-2 px-1"
-                          aria-label={label}
-                          aria-pressed={theme === value}
-                          onClick={() => setTheme(value)}
-                        >
-                          <Icon className="size-4" />
-                          <span className="text-xs">{label}</span>
-                        </Button>
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          notionReady ? "bg-green-500" : "bg-red-500"
+                        }`}
+                      />
+                      <span className="text-sm font-medium">
+                        Notion {notionReady ? "연결됨" : "연결 안됨"}
+                      </span>
                     </div>
                   </div>
-                )}
 
-                <div className="px-2 py-1">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-sm h-auto py-2"
-                    onClick={() => {
-                      window.location.href = withBasePath("/settings/notion");
-                      setIsMenuOpen(false);
-                    }}
-                  >
-                    Notion 연동 설정
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-sm h-auto py-2"
-                    onClick={() => {
-                      fetch(withBasePath("/api/notion/disconnect"), {
-                        method: "POST",
-                      })
-                        .then((data) => {
-                          if (data.ok) {
-                            toast.success("Notion 연결 해제 완료", {
-                              duration: 1000,
-                            });
-                            checkNotionStatus();
-                            setIsMenuOpen(false);
-                          }
+                  {themeMounted && (
+                    <div className="px-4 py-3 border-b border-border">
+                      <span className="text-sm font-medium mb-2 block">
+                        테마
+                      </span>
+                      <div
+                        className="grid grid-cols-3 gap-1"
+                        role="group"
+                        aria-label="테마 선택"
+                      >
+                        {(
+                          [
+                            { value: "light", icon: Sun, label: "라이트" },
+                            { value: "dark", icon: Moon, label: "다크" },
+                            { value: "system", icon: Monitor, label: "시스템" },
+                          ] as const
+                        ).map(({ value, icon: Icon, label }) => (
+                          <Button
+                            key={value}
+                            type="button"
+                            variant={theme === value ? "default" : "outline"}
+                            size="sm"
+                            className="h-auto flex-col gap-1 py-2 px-1"
+                            aria-label={label}
+                            aria-pressed={theme === value}
+                            onClick={() => setTheme(value)}
+                          >
+                            <Icon className="size-4" />
+                            <span className="text-xs">{label}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="px-2 py-1">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-sm h-auto py-2"
+                      onClick={() => {
+                        window.location.href = withBasePath("/settings/notion");
+                        setIsMenuOpen(false);
+                      }}
+                    >
+                      Notion 연동 설정
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-sm h-auto py-2"
+                      onClick={() => {
+                        fetch(withBasePath("/api/notion/disconnect"), {
+                          method: "POST",
                         })
-                        .catch((err) => {
-                          toast.error(
-                            "Notion 연결 해제 중 오류가 발생했습니다.",
-                            {
-                              duration: 1000,
-                            },
-                          );
-                        });
-                    }}
-                  >
-                    연결 해제
-                  </Button>
+                          .then((data) => {
+                            if (data.ok) {
+                              toast.success("Notion 연결 해제 완료", {
+                                duration: 1000,
+                              });
+                              checkNotionStatus();
+                              setIsMenuOpen(false);
+                            }
+                          })
+                          .catch((err) => {
+                            toast.error(
+                              "Notion 연결 해제 중 오류가 발생했습니다.",
+                              {
+                                duration: 1000,
+                              },
+                            );
+                          });
+                      }}
+                    >
+                      연결 해제
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
+      </header>
 
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {sessionMetadata && (
-              <div className="px-1 text-sm text-muted-foreground">
-                {formatSessionDateLabel(sessionMetadata.startedAt)}
-              </div>
-            )}
-            <input
-              type="text"
-              value={sessionNameInput}
-              onChange={(e) => setSessionNameInput(e.target.value)}
-              onBlur={handleSessionNameBlur}
-              placeholder="세션 이름을 입력하세요"
-              className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <div className="shrink-0 px-1 py-1 text-3xl font-bold tabular-nums leading-none">
-            {formatClock(currentDurationSeconds)}
-          </div>
+      <div className="space-y-3 px-4 pt-1 pb-2">
+        <div className="min-w-0">
+          {sessionMetadata && (
+            <div className="px-1 text-sm text-muted-foreground">
+              {formatSessionDateLabel(sessionMetadata.startedAt)}
+            </div>
+          )}
+          <input
+            type="text"
+            value={sessionNameInput}
+            onChange={(e) => setSessionNameInput(e.target.value)}
+            onBlur={handleSessionNameBlur}
+            placeholder="세션 이름을 입력하세요"
+            className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+          />
         </div>
 
         <div className="border-b border-foreground" />
 
-        <div className="flex items-center gap-2">
-          <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm" className="shrink-0">
-                <History className="size-4 mr-1" />
-                더보기
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-[85vh]">
-              <SheetHeader>
-                <SheetTitle>전체 운동 기록</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 overflow-y-auto h-full pb-20">
-                <WorkoutHistoryClient
-                  showHistory={true}
-                  historyVersion={historyVersion}
-                  selectedDate={null}
-                  notionReady={notionReady}
-                  onHistoryChanged={onHistoryChanged}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto scrollbar-hide"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <div className="flex gap-1 min-w-min">
+            {dateRange.map((dateInfo) => {
+              const dateStr = formatDateString(dateInfo.date);
+              const isViewed =
+                selectedDate === dateStr ||
+                (dateInfo.isToday && selectedDate === null);
+              const showSessionDot =
+                dateInfo.hasSession && !dateInfo.isToday && !dateInfo.isFuture;
 
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-x-auto scrollbar-hide"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            <div className="flex gap-1 min-w-min">
-              {dateRange.map((dateInfo) => {
-                const dateStr = formatDateString(dateInfo.date);
-                const isSelected = selectedDate === dateStr;
-
-                return (
-                  <button
-                    key={dateStr}
-                    disabled={dateInfo.isFuture}
-                    onClick={() => handleDateClick(dateInfo)}
-                    className={`
-                      flex flex-col items-center justify-center
-                      min-w-[50px] h-[60px] rounded-lg border
-                      transition-all shrink-0
-                      ${
-                        dateInfo.isFuture
-                          ? "cursor-not-allowed"
-                          : dateInfo.isToday
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : isSelected
-                              ? "bg-accent border-primary text-foreground"
-                              : "bg-card text-foreground border-border hover:bg-accent"
-                      }
-                    `}
+              return (
+                <button
+                  key={dateStr}
+                  disabled={dateInfo.isFuture}
+                  onClick={() => handleDateClick(dateInfo)}
+                  aria-current={isViewed ? "date" : undefined}
+                  className={`flex h-11 min-w-11 shrink-0 flex-col items-center justify-center transition-colors ${
+                    dateInfo.isFuture
+                      ? "cursor-not-allowed text-muted-foreground opacity-40"
+                      : "text-foreground hover:bg-accent"
+                  }`}
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {dateInfo.dayOfWeek}
+                  </span>
+                  <span
+                    className={`border-b-2 px-0.5 text-base leading-tight tabular-nums ${
+                      isViewed ? "border-foreground" : "border-transparent"
+                    } ${isViewed || dateInfo.isToday ? "font-bold" : "font-medium"}`}
                   >
-                    <div
-                      className={`
-                        text-xs font-medium px-2 py-0.5 rounded
-                        ${
-                          dateInfo.hasSession &&
-                          !dateInfo.isToday &&
-                          !dateInfo.isFuture
-                            ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
-                            : ""
-                        }
-                      `}
-                    >
-                      {dateInfo.dayOfWeek}
-                    </div>
-                    <div className="text-sm font-bold mt-1">
-                      {dateInfo.dayOfMonth}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    {dateInfo.dayOfMonth}
+                  </span>
+                  <span
+                    className={`mt-0.5 size-1 rounded-full ${
+                      showSessionDot ? "bg-foreground" : "bg-transparent"
+                    }`}
+                  />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
-    </header>
+    </>
   );
 
   async function checkNotionStatus() {
