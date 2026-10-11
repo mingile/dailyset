@@ -105,3 +105,75 @@ export function getPreviousRecord(
     return [createDefaultSet(equipment)];
   }
 }
+
+export type PreviousSets = {
+  savedAt: string;
+  sets: { weight: number; reps: number; equipment: string }[];
+};
+
+/**
+ * 같은 운동의 가장 최근 이전 세션 기록을 읽기 전용으로 조회한다.
+ * 매칭 규칙은 getPreviousRecord와 같다: 운동명 + 기구 일치 → 운동명만 일치.
+ * excludeSessionId(현재 세션)는 제외한다. 저장 시 같은 id로 덮어써지기 때문이다.
+ */
+export function getPreviousSets(
+  exerciseName: string,
+  equipment: string,
+  excludeSessionId?: string,
+): PreviousSets | null {
+  try {
+    const sessionsData = localStorage.getItem("workout.sessions.v1");
+    if (!sessionsData) return null;
+
+    const sessions: Session[] = JSON.parse(sessionsData);
+    if (!Array.isArray(sessions)) return null;
+
+    const sortedSessions = sessions
+      .filter((session) => session.id !== excludeSessionId)
+      .sort(
+        (a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
+      );
+
+    const toPreviousSets = (
+      savedAt: string,
+      sets: { weight: number; reps: number; equipment: string }[],
+    ): PreviousSets => ({
+      savedAt,
+      sets: sets.map((set) => ({
+        weight: set.weight,
+        reps: set.reps,
+        equipment: set.equipment,
+      })),
+    });
+
+    if (equipment) {
+      for (const session of sortedSessions) {
+        const foundExercise = session.exercises.find(
+          (ex) =>
+            ex.name === exerciseName &&
+            ex.sets.some((set) => set.equipment === equipment),
+        );
+        if (foundExercise) {
+          return toPreviousSets(
+            session.savedAt,
+            foundExercise.sets.filter((set) => set.equipment === equipment),
+          );
+        }
+      }
+    }
+
+    for (const session of sortedSessions) {
+      const foundExercise = session.exercises.find(
+        (ex) => ex.name === exerciseName && ex.sets.length > 0,
+      );
+      if (foundExercise) {
+        return toPreviousSets(session.savedAt, foundExercise.sets);
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Failed to load previous sets:", error);
+    return null;
+  }
+}

@@ -31,10 +31,15 @@ import {
   Check,
   ChevronDown,
 } from "lucide-react";
-import { convertInputToKg } from "@/lib/weightUnit";
+import { convertInputToKg, ruleDecision } from "@/lib/weightUnit";
 import { useExerciseLibrary } from "@/hooks/useExerciseLibrary";
 import { groupExercisesByCategory } from "@/lib/library";
-import { getPreviousRecord, createDefaultSet } from "@/lib/previous-record";
+import {
+  getPreviousRecord,
+  createDefaultSet,
+  getPreviousSets,
+  type PreviousSets,
+} from "@/lib/previous-record";
 import { useTimerTick } from "@/hooks/useTimerTick";
 import {
   createRunningExerciseTimer,
@@ -514,28 +519,36 @@ export function WorkoutSessionClient({
                         />
                       ))}
                     </div>
+                    <PreviousRecord
+                      exerciseName={ex.name}
+                      equipment={currentSet?.equipment ?? ""}
+                      sessionId={sessionMetadata?.sessionId}
+                      displayWeightUnit={displayWeightUnit}
+                    />
                   </div>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
           );
         })}
-      </div>
-
-      {!hideSessionActions && (
-        <>
+        {!hideSessionActions && (
           <Sheet
             open={isAddExerciseSheetOpen}
             onOpenChange={setIsAddExerciseSheetOpen}
           >
             <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full h-14 border-2 border-dashed flex items-center justify-center gap-2"
+              <button
+                type="button"
+                className="flex h-14 w-full items-center gap-3 border-b border-border text-left text-muted-foreground"
               >
-                <Plus className="h-5 w-5" />
-                운동 추가
-              </Button>
+                <span className="flex w-6 shrink-0 justify-center">
+                  <Plus className="size-4" />
+                </span>
+                <span className="h-6 shrink-0 border-l border-border" />
+                <span className="text-lg font-bold tracking-tight">
+                  운동 추가
+                </span>
+              </button>
             </SheetTrigger>
             <SheetContent
               side="bottom"
@@ -548,24 +561,91 @@ export function WorkoutSessionClient({
               />
             </SheetContent>
           </Sheet>
+        )}
+      </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <Button onClick={onSave} disabled={saving}>
+      {!hideSessionActions && (
+        <>
+          <div className="grid grid-cols-2 gap-2 pt-4">
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={onSave}
+              disabled={saving}
+            >
               {saving ? "저장중..." : "저장"}
             </Button>
-            <Button onClick={onStartNewSession}>새 세션</Button>
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={onStartNewSession}
+            >
+              새 세션
+            </Button>
           </div>
 
           <Button
             onClick={onCompleteWorkout}
             disabled={saving}
-            className="w-full mt-2 bg-green-700 text-white hover:bg-green-600 dark:bg-green-700 dark:hover:bg-green-500"
+            className="mt-2 h-11 w-full bg-foreground text-background hover:bg-foreground/90"
           >
             {saving ? "처리중..." : "운동 완료"}
           </Button>
         </>
       )}
     </main>
+  );
+}
+
+function PreviousRecord({
+  exerciseName,
+  equipment,
+  sessionId,
+  displayWeightUnit,
+}: {
+  exerciseName: string;
+  equipment: string;
+  sessionId?: string;
+  displayWeightUnit: (
+    weight: number,
+    unit: "kg" | "lb",
+  ) => { displayWeight: number; displayUnit: "kg" | "lb" };
+}) {
+  const [record, setRecord] = useState<PreviousSets | null>(null);
+
+  useEffect(() => {
+    setRecord(getPreviousSets(exerciseName, equipment, sessionId));
+  }, [exerciseName, equipment, sessionId]);
+
+  if (!record || record.sets.length === 0) return null;
+
+  const savedAt = new Date(record.savedAt);
+  const dateLabel = Number.isNaN(savedAt.getTime())
+    ? ""
+    : `${savedAt.getFullYear()}. ${savedAt.getMonth() + 1}. ${savedAt.getDate()}`;
+
+  return (
+    <div className="mt-4 text-muted-foreground">
+      <div className="flex items-baseline gap-2 text-xs font-medium uppercase tracking-[0.15em]">
+        <span>Last</span>
+        <span>/</span>
+        <span className="tabular-nums">{dateLabel}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base tabular-nums">
+        {record.sets.map((set, index) => {
+          const { displayWeight, displayUnit } = displayWeightUnit(
+            set.weight,
+            ruleDecision(set.equipment).unit,
+          );
+          return (
+            <span key={index}>
+              {displayWeight}
+              {displayUnit} × {set.reps}
+            </span>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
