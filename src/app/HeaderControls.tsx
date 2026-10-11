@@ -10,11 +10,14 @@ import {
 } from "@/components/ui/sheet";
 import type { Session, SessionMetadata, DateInfo } from "./types";
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Settings, History, Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
+
+const HEADER_TEXT_BUTTON =
+  "h-11 min-w-11 gap-1 rounded-none px-2 text-xs font-semibold tracking-[0.1em]";
 
 function formatClock(seconds: number): string {
   const totalSeconds = Math.max(0, Math.floor(seconds));
@@ -50,6 +53,7 @@ export function HeaderControls({
   historyVersion,
   currentDurationSeconds,
   onHistoryChanged,
+  onStartNewSession,
 }: {
   notionReady: boolean;
   setNotionReady: (notionReady: boolean) => void;
@@ -62,6 +66,7 @@ export function HeaderControls({
   historyVersion: number;
   currentDurationSeconds: number;
   onHistoryChanged?: () => void;
+  onStartNewSession: () => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -214,18 +219,15 @@ export function HeaderControls({
   return (
     <>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between px-4 py-1">
+        <div className="flex items-center justify-between px-4">
           <span className="text-xs font-semibold uppercase tracking-[0.2em]">
             Daily Set
           </span>
-          <div className="flex items-center gap-1">
-            <div className="px-1 text-xl font-bold tabular-nums leading-none">
-              {formatClock(currentDurationSeconds)}
-            </div>
+          <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="전체 운동 기록">
-                  <History className="size-6" />
+                <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                  기록
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" className="h-[85vh]">
@@ -243,17 +245,24 @@ export function HeaderControls({
                 </div>
               </SheetContent>
             </Sheet>
+            {!showHistory && (
+              <Button
+                variant="ghost"
+                className={HEADER_TEXT_BUTTON}
+                onClick={onStartNewSession}
+              >
+                새 세션
+              </Button>
+            )}
             <div className="relative" ref={menuRef}>
               <Button
                 variant="ghost"
-                size="icon"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="relative"
-                aria-label="설정"
+                className={HEADER_TEXT_BUTTON}
               >
-                <Settings className="size-6" />
-                <div
-                  className={`absolute top-1 right-1.25 w-2 h-2 rounded-full ${
+                설정
+                <span
+                  className={`size-1.5 rounded-full ${
                     notionReady ? "bg-green-500" : "bg-red-500"
                   }`}
                 />
@@ -357,20 +366,25 @@ export function HeaderControls({
       </header>
 
       <div className="space-y-3 px-4 pt-1 pb-2">
-        <div className="min-w-0">
-          {sessionMetadata && (
-            <div className="px-1 text-sm text-muted-foreground">
-              {formatSessionDateLabel(sessionMetadata.startedAt)}
-            </div>
-          )}
-          <input
-            type="text"
-            value={sessionNameInput}
-            onChange={(e) => setSessionNameInput(e.target.value)}
-            onBlur={handleSessionNameBlur}
-            placeholder="세션 이름을 입력하세요"
-            className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-7">
+            {sessionMetadata && (
+              <div className="px-1 text-sm text-muted-foreground">
+                {formatSessionDateLabel(sessionMetadata.startedAt)}
+              </div>
+            )}
+            <input
+              type="text"
+              value={sessionNameInput}
+              onChange={(e) => setSessionNameInput(e.target.value)}
+              onBlur={handleSessionNameBlur}
+              placeholder="세션 이름을 입력하세요"
+              className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="min-w-0 flex-3 whitespace-nowrap pb-2 text-right text-2xl font-bold tabular-nums leading-none">
+            {formatClock(currentDurationSeconds)}
+          </div>
         </div>
 
         <div className="border-b border-foreground" />

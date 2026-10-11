@@ -24,13 +24,7 @@ import {
   ExerciseTimers,
 } from "./types";
 import { useEffect, useState, useRef } from "react";
-import {
-  TrashIcon,
-  Plus,
-  CheckCircle2,
-  Check,
-  ChevronDown,
-} from "lucide-react";
+import { TrashIcon, Plus, Minus, CheckCircle2, Check } from "lucide-react";
 import { convertInputToKg, ruleDecision } from "@/lib/weightUnit";
 import { useExerciseLibrary } from "@/hooks/useExerciseLibrary";
 import { groupExercisesByCategory } from "@/lib/library";
@@ -110,9 +104,7 @@ export function WorkoutSessionClient({
   exerciseTimers,
   onExerciseTimersChange,
   addExercisesToSession,
-  onSave,
   onCompleteWorkout,
-  onStartNewSession,
   saving,
   hideSessionActions = false,
 }: {
@@ -247,10 +239,19 @@ export function WorkoutSessionClient({
     }
   }
 
+  // 펼친(활성) 운동은 화면에서만 맨 위에 두고, 나머지는 원래 순서를 유지한다.
+  // 번호와 핸들러 인덱스는 exercises 배열의 원래 인덱스를 그대로 쓴다.
+  const displayOrder = exercises.map((_, index) => index);
+  if (openAccordionIndex !== null && openAccordionIndex < exercises.length) {
+    displayOrder.splice(openAccordionIndex, 1);
+    displayOrder.unshift(openAccordionIndex);
+  }
+
   return (
     <main className="session-font px-4 py-2 space-y-2">
       <div className="border-t border-border">
-        {exercises.map((ex, i) => {
+        {displayOrder.map((i) => {
+          const ex = exercises[i];
           const completed = isExerciseCompleted(ex);
           const completedCount = getCompletedSetCount(ex);
           const targetCount = ex.sets.length;
@@ -266,6 +267,12 @@ export function WorkoutSessionClient({
           const currentDisplay = currentSet
             ? displayWeightUnit(currentSet.weight, currentSet.unit)
             : null;
+          const exerciseSubtitle = [
+            currentSet ? EQUIPMENT_LABELS[currentSet.equipment] : undefined,
+            ex.part,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return (
             <Accordion
               key={ex.id}
@@ -312,12 +319,19 @@ export function WorkoutSessionClient({
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <span className="h-6 shrink-0 border-l border-border" />
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <span className="truncate text-lg font-bold tracking-tight">
-                          {ex.name}
-                        </span>
-                        {completed && (
-                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-lg font-bold tracking-tight">
+                            {ex.name}
+                          </span>
+                          {completed && (
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          )}
+                        </div>
+                        {exerciseSubtitle && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {exerciseSubtitle}
+                          </div>
                         )}
                       </div>
                       <span className="shrink-0 text-sm tabular-nums uppercase tracking-wider text-muted-foreground">
@@ -328,11 +342,11 @@ export function WorkoutSessionClient({
                 </AccordionTrigger>
 
                 {isActive && (
-                  <div className="flex items-center gap-1 pb-4 text-sm text-muted-foreground">
+                  <div className="flex items-baseline gap-1 pb-3 text-sm text-muted-foreground">
                     <select
                       aria-label="현재 세트 기구"
                       disabled={!currentSet}
-                      className="-my-2 field-sizing-content cursor-pointer appearance-none rounded-none border-0 bg-transparent py-2 text-sm text-muted-foreground underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="-mx-3 -mb-3 -mt-1 field-sizing-content cursor-pointer appearance-none rounded-none border-0 bg-transparent px-3 py-3 text-sm text-muted-foreground underline decoration-dotted underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       value={currentSet?.equipment ?? ""}
                       onChange={(e) =>
                         changeEquipment(i, currentSetIdx, e.target.value)
@@ -381,7 +395,7 @@ export function WorkoutSessionClient({
                           type="button"
                           disabled={!currentSet}
                           aria-label="무게 단위 전환"
-                          className="-mb-2 block w-full py-2 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
+                          className="-mb-3.5 -mt-1.5 block w-full py-3.5 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
                           onClick={() => {
                             if (!currentSet) return;
                             changeUnit(
@@ -420,16 +434,34 @@ export function WorkoutSessionClient({
                       </div>
                       <div className="min-w-0 border-l border-border pl-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                          <button
+                            type="button"
+                            aria-label="세트 삭제"
+                            disabled={
+                              ex.sets.length <= 1 ||
+                              ex.sets[ex.sets.length - 1].done
+                            }
+                            className="-mx-1.5 -my-2 flex size-11 items-center justify-center disabled:opacity-40"
+                            onClick={() =>
+                              changeSetTotal(i, ex, String(ex.sets.length - 1))
+                            }
+                          >
+                            <span className="flex size-7 items-center justify-center rounded-full border border-border">
+                              <Minus className="size-4" />
+                            </span>
+                          </button>
+                          <span className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
                             set
                           </span>
                           <button
                             type="button"
                             aria-label="세트 추가"
-                            className="-my-1 flex size-9 items-center justify-center rounded-full border border-border"
+                            className="-mx-1.5 -my-2 flex size-11 items-center justify-center"
                             onClick={() => addSet(i)}
                           >
-                            <Plus className="size-4" />
+                            <span className="flex size-7 items-center justify-center rounded-full border border-border">
+                              <Plus className="size-4" />
+                            </span>
                           </button>
                         </div>
                         <div className="mt-1 flex items-center whitespace-nowrap text-lg font-bold tabular-nums">
@@ -457,7 +489,7 @@ export function WorkoutSessionClient({
                                   inputMode="numeric"
                                   hint
                                   ariaLabel="목표 세트 수"
-                                  className="py-1 text-lg font-bold tabular-nums"
+                                  className="-my-1 min-w-11 py-2 text-lg font-bold tabular-nums"
                                   onCommit={(draft) =>
                                     changeSetTotal(i, ex, draft)
                                   }
@@ -474,7 +506,7 @@ export function WorkoutSessionClient({
                       type="text"
                       aria-label="현재 세트 메모"
                       disabled={!currentSet}
-                      className="mt-4 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-2 text-sm outline-none focus:border-(--session-accent)"
+                      className="mt-3 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-3 text-sm outline-none focus:border-(--session-accent)"
                       value={currentSet?.memo ?? ""}
                       onChange={(e) =>
                         changeMemo(i, currentSetIdx, e.target.value)
@@ -499,7 +531,6 @@ export function WorkoutSessionClient({
                           exerciseIndex={i}
                           setIndex={j}
                           weight={set.weight}
-                          equipment={set.equipment}
                           reps={set.reps}
                           memo={set.memo || ""}
                           done={set.done}
@@ -510,10 +541,7 @@ export function WorkoutSessionClient({
                           onWeightChange={changeWeight}
                           onRepsDelta={changeReps}
                           onToggleDone={toggleDone}
-                          changeMemo={changeMemo}
                           displayWeightUnit={displayWeightUnit}
-                          changeEquipment={changeEquipment}
-                          changeUnit={changeUnit}
                           changeSetType={changeSetType}
                           unit={set.unit}
                         />
@@ -565,33 +593,13 @@ export function WorkoutSessionClient({
       </div>
 
       {!hideSessionActions && (
-        <>
-          <div className="grid grid-cols-2 gap-2 pt-4">
-            <Button
-              variant="outline"
-              className="h-11"
-              onClick={onSave}
-              disabled={saving}
-            >
-              {saving ? "저장중..." : "저장"}
-            </Button>
-            <Button
-              variant="outline"
-              className="h-11"
-              onClick={onStartNewSession}
-            >
-              새 세션
-            </Button>
-          </div>
-
-          <Button
-            onClick={onCompleteWorkout}
-            disabled={saving}
-            className="mt-2 h-11 w-full bg-foreground text-background hover:bg-foreground/90"
-          >
-            {saving ? "처리중..." : "운동 완료"}
-          </Button>
-        </>
+        <Button
+          onClick={onCompleteWorkout}
+          disabled={saving}
+          className="mt-6 h-14 w-full bg-(--session-accent) text-lg font-bold text-zinc-900 hover:bg-(--session-accent)/90"
+        >
+          {saving ? "처리중..." : "운동 완료"}
+        </Button>
       )}
     </main>
   );
@@ -626,22 +634,31 @@ function PreviousRecord({
 
   return (
     <div className="mt-4 text-muted-foreground">
-      <div className="flex items-baseline gap-2 text-xs font-medium uppercase tracking-[0.15em]">
-        <span>Last</span>
+      <div className="flex items-baseline gap-2 px-1 pl-3 text-xs font-medium uppercase tracking-[0.15em]">
+        <span>이전 기록</span>
         <span>/</span>
         <span className="tabular-nums">{dateLabel}</span>
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base tabular-nums">
+      <div className="mt-1">
         {record.sets.map((set, index) => {
           const { displayWeight, displayUnit } = displayWeightUnit(
             set.weight,
             ruleDecision(set.equipment).unit,
           );
           return (
-            <span key={index}>
-              {displayWeight}
-              {displayUnit} × {set.reps}
-            </span>
+            <div
+              key={index}
+              className={`grid ${SET_ROW_GRID} items-center gap-1 px-1 py-1 text-sm tabular-nums`}
+            >
+              <span className="pl-2">{String(index + 1).padStart(2, "0")}</span>
+              <span />
+              <span>
+                {displayWeight}
+                <span className="ml-1 text-xs">{displayUnit}</span>
+              </span>
+              <span>{set.reps}</span>
+              <span />
+            </div>
           );
         })}
       </div>
@@ -734,7 +751,6 @@ function Row({
   exerciseIndex,
   setIndex,
   weight,
-  equipment,
   reps,
   done,
   setType,
@@ -743,11 +759,8 @@ function Row({
   onRepsDelta,
   onToggleDone,
   memo,
-  changeMemo,
   deleteSet,
   displayWeightUnit,
-  changeEquipment,
-  changeUnit,
   changeSetType,
   unit,
 }: {
@@ -755,7 +768,6 @@ function Row({
   exerciseIndex: number;
   setIndex: number;
   weight: number;
-  equipment: string;
   reps: number;
   done: boolean;
   setType: "warmup" | "main";
@@ -764,14 +776,11 @@ function Row({
   onRepsDelta: (exIdx: number, setIdx: number, delta: number) => void;
   onToggleDone: (exIdx: number, setIdx: number) => void;
   memo: string;
-  changeMemo: (exIdx: number, setIdx: number, value: string) => void;
   deleteSet: (exId: string, setIdx: number) => void;
   displayWeightUnit: (
     weight: number,
     unit: "kg" | "lb",
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
-  changeEquipment: (exIdx: number, setIdx: number, equipment: string) => void;
-  changeUnit: (exIdx: number, setIdx: number, unit: "kg" | "lb") => void;
   changeSetType: (
     exIdx: number,
     setIdx: number,
@@ -782,7 +791,6 @@ function Row({
   const { displayWeight, displayUnit } = displayWeightUnit(weight, unit);
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [isSwiping, setIsSwiping] = useState<boolean>(false);
-  const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
   const setLabel = `세트 ${setIndex + 1}`;
 
@@ -864,20 +872,11 @@ function Row({
               <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
             </>
           )}
-          <button
-            type="button"
-            aria-expanded={isDetailOpen}
-            aria-label={`${setLabel} 상세`}
-            className="flex h-12 items-center gap-0.5 pl-2 text-left tabular-nums"
-            onClick={() => setIsDetailOpen((open) => !open)}
+          <span
+            className={`flex h-12 items-center pl-2 text-sm tabular-nums ${isCurrent ? "font-bold" : ""}`}
           >
-            <span className={`text-sm ${isCurrent ? "font-bold" : ""}`}>
-              {String(setIndex + 1).padStart(2, "0")}
-            </span>
-            <ChevronDown
-              className={`size-3 transition-transform ${isDetailOpen ? "rotate-180" : ""}`}
-            />
-          </button>
+            {String(setIndex + 1).padStart(2, "0")}
+          </span>
           <button
             type="button"
             aria-label={`${setLabel} 타입 전환`}
@@ -926,71 +925,9 @@ function Row({
             )}
           </button>
         </div>
-        {!isDetailOpen && memo.trim() !== "" && (
+        {memo.trim() !== "" && (
           <div className="-mt-1 truncate px-3 pb-2 text-xs italic text-muted-foreground">
             "{memo}"
-          </div>
-        )}
-        {isDetailOpen && (
-          <div className="space-y-3 px-3 pb-3 pt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">단위</span>
-              <div className="flex gap-1">
-                <Button
-                  type="button"
-                  variant={unit === "kg" ? "default" : "outline"}
-                  className="h-6 px-2 text-xs"
-                  onClick={() => changeUnit(exerciseIndex, setIndex, "kg")}
-                >
-                  kg
-                </Button>
-                <Button
-                  type="button"
-                  variant={unit === "lb" ? "default" : "outline"}
-                  className="h-6 px-2 text-xs"
-                  onClick={() => changeUnit(exerciseIndex, setIndex, "lb")}
-                >
-                  lb
-                </Button>
-              </div>
-            </div>
-            <div>
-              <select
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-ring"
-                value={equipment}
-                onChange={(e) =>
-                  changeEquipment(exerciseIndex, setIndex, e.target.value)
-                }
-              >
-                <option value="">기구 선택</option>
-                {Object.entries(EQUIPMENT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">메모</div>
-              <input
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-ring"
-                type="text"
-                value={memo}
-                onChange={(e) =>
-                  changeMemo(exerciseIndex, setIndex, e.target.value)
-                }
-                placeholder="세트 메모"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-8 text-xs text-destructive"
-              onClick={() => setIsDeleteDialogOpen(true)}
-            >
-              <TrashIcon className="size-4" />
-              세트 삭제
-            </Button>
           </div>
         )}
       </div>

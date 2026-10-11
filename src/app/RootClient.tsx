@@ -793,12 +793,12 @@ export function RootClient() {
   }
 
   function handleStartNewSession() {
-    if (historyDirty) {
-      const confirmed = window.confirm(
-        "저장되지 않은 변경사항이 있습니다.\n새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)",
-      );
-      if (!confirmed) return;
-    }
+    const confirmed = window.confirm(
+      historyDirty
+        ? "저장되지 않은 변경사항이 있습니다.\n새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)"
+        : "새 세션을 시작하시겠습니까?\n(현재 세션이 종료됩니다)",
+    );
+    if (!confirmed) return;
 
     startNewSession();
     toast.success("새 세션을 시작합니다", {
@@ -1088,6 +1088,7 @@ export function RootClient() {
           historyVersion={historyVersion}
           currentDurationSeconds={currentDurationSeconds}
           onHistoryChanged={onSavedHistory}
+          onStartNewSession={handleStartNewSession}
         />
         {!showHistory && (
           <WorkoutSessionClient
