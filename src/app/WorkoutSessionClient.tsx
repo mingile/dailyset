@@ -206,145 +206,145 @@ export function WorkoutSessionClient({
   }, [exercises, openAccordionIndex]);
 
   return (
-    <main className="session-font p-2 space-y-2">
-      {exercises.map((ex, i) => {
-        const completed = isExerciseCompleted(ex);
-        const completedCount = getCompletedMainSetCount(ex);
-        const targetCount = ex.targetMainSetCount || 0;
+    <main className="session-font px-4 py-2 space-y-2">
+      <div className="border-t border-border">
+        {exercises.map((ex, i) => {
+          const completed = isExerciseCompleted(ex);
+          const completedCount = getCompletedMainSetCount(ex);
+          const targetCount = ex.targetMainSetCount || 0;
+          const isActive = openAccordionIndex === i;
 
-        return (
-          <Accordion
-            key={ex.id}
-            type="single"
-            collapsible
-            value={openAccordionIndex === i ? `item-${i}` : ""}
-            onValueChange={(val) =>
-              setOpenAccordionIndex(val === `item-${i}` ? i : null)
-            }
-          >
-            <AccordionItem
-              value={`item-${i}`}
-              className={`rounded-lg border px-2 transition-colors ${
-                completed
-                  ? "bg-green-50 border-green-300 dark:bg-green-950/30 dark:border-green-800"
-                  : ""
-              }`}
+          return (
+            <Accordion
+              key={ex.id}
+              type="single"
+              collapsible
+              value={isActive ? `item-${i}` : ""}
+              onValueChange={(val) =>
+                setOpenAccordionIndex(val === `item-${i}` ? i : null)
+              }
             >
-              <AccordionTrigger className="py-3">
-                <div className="flex w-full items-center justify-between pr-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-base font-medium ${completed ? "text-green-700 dark:text-green-400" : ""}`}
-                    >
-                      {ex.name}
+              <AccordionItem
+                value={`item-${i}`}
+                className="border-b border-border last:border-b"
+              >
+                <AccordionTrigger className="min-w-0 items-center py-4 hover:no-underline">
+                  <div className="flex w-full min-w-0 items-center gap-3">
+                    <span className="w-6 shrink-0 text-sm tabular-nums text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
                     </span>
-                    {completed && (
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {displayElapsedSeconds[ex.id] !== undefined &&
-                      displayElapsedSeconds[ex.id] > 0 && (
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {formatElapsedTime(displayElapsedSeconds[ex.id])}
-                        </span>
+                    <span className="h-6 shrink-0 border-l border-border" />
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="truncate text-lg font-bold tracking-tight">
+                        {ex.name}
+                      </span>
+                      {completed && (
+                        <CheckCircle2 className="h-4 w-4 shrink-0" />
                       )}
-                    <span
-                      className={`text-sm ${completed ? "text-green-700 dark:text-green-400 font-semibold" : "text-muted-foreground"}`}
-                    >
-                      {completedCount} / {targetCount}
-                    </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                      {isActive &&
+                        displayElapsedSeconds[ex.id] !== undefined &&
+                        displayElapsedSeconds[ex.id] > 0 && (
+                          <span className="font-mono tabular-nums">
+                            {formatElapsedTime(displayElapsedSeconds[ex.id])}
+                          </span>
+                        )}
+                      <span className="tabular-nums uppercase tracking-wider">
+                        {completedCount} / {targetCount} SETS
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </AccordionTrigger>
+                </AccordionTrigger>
 
-              <AccordionContent className="pb-3">
-                <div className="mb-3 space-y-2">
-                  <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
-                    <span className="text-sm text-muted-foreground">
-                      목표 웜업세트
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-7 w-7 p-0"
-                        onClick={() => changeTargetWarmupSetCount(i, -1)}
-                      >
-                        -
-                      </Button>
-                      <span className="w-8 text-center font-semibold">
-                        {ex.targetWarmupSetCount || 0}
+                <AccordionContent className="pb-3">
+                  <div className="mb-3 space-y-2">
+                    <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
+                      <span className="text-sm text-muted-foreground">
+                        목표 웜업세트
                       </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-7 w-7 p-0"
-                        onClick={() => changeTargetWarmupSetCount(i, +1)}
-                      >
-                        +
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 w-7 p-0"
+                          onClick={() => changeTargetWarmupSetCount(i, -1)}
+                        >
+                          -
+                        </Button>
+                        <span className="w-8 text-center font-semibold">
+                          {ex.targetWarmupSetCount || 0}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 w-7 p-0"
+                          onClick={() => changeTargetWarmupSetCount(i, +1)}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
+                      <span className="text-sm text-muted-foreground">
+                        목표 본세트
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 w-7 p-0"
+                          onClick={() => changeTargetMainSetCount(i, -1)}
+                        >
+                          -
+                        </Button>
+                        <span className="w-8 text-center font-semibold">
+                          {ex.targetMainSetCount || 0}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 w-7 p-0"
+                          onClick={() => changeTargetMainSetCount(i, +1)}
+                        >
+                          +
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2">
-                    <span className="text-sm text-muted-foreground">
-                      목표 본세트
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-7 w-7 p-0"
-                        onClick={() => changeTargetMainSetCount(i, -1)}
-                      >
-                        -
-                      </Button>
-                      <span className="w-8 text-center font-semibold">
-                        {ex.targetMainSetCount || 0}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-7 w-7 p-0"
-                        onClick={() => changeTargetMainSetCount(i, +1)}
-                      >
-                        +
-                      </Button>
-                    </div>
+                  <div className="space-y-3">
+                    {ex.sets.map((set, j) => (
+                      <Row
+                        key={`${ex.id}-set-${j}`}
+                        exerciseIndex={i}
+                        setIndex={j}
+                        weight={set.weight}
+                        equipment={set.equipment}
+                        reps={set.reps}
+                        memo={set.memo || ""}
+                        done={set.done}
+                        setType={set.setType || "main"}
+                        exId={ex.id}
+                        deleteSet={deleteSet}
+                        onWeightChange={changeWeight}
+                        onRepsDelta={changeReps}
+                        onToggleDone={toggleDone}
+                        changeMemo={changeMemo}
+                        displayWeightUnit={displayWeightUnit}
+                        nextWeight={nextWeight}
+                        changeEquipment={changeEquipment}
+                        changeUnit={changeUnit}
+                        changeSetType={changeSetType}
+                        unit={set.unit}
+                      />
+                    ))}
                   </div>
-                </div>
-                <div className="space-y-3">
-                  {ex.sets.map((set, j) => (
-                    <Row
-                      key={`${ex.id}-set-${j}`}
-                      exerciseIndex={i}
-                      setIndex={j}
-                      weight={set.weight}
-                      equipment={set.equipment}
-                      reps={set.reps}
-                      memo={set.memo || ""}
-                      done={set.done}
-                      setType={set.setType || "main"}
-                      exId={ex.id}
-                      deleteSet={deleteSet}
-                      onWeightChange={changeWeight}
-                      onRepsDelta={changeReps}
-                      onToggleDone={toggleDone}
-                      changeMemo={changeMemo}
-                      displayWeightUnit={displayWeightUnit}
-                      nextWeight={nextWeight}
-                      changeEquipment={changeEquipment}
-                      changeUnit={changeUnit}
-                      changeSetType={changeSetType}
-                      unit={set.unit}
-                    />
-                  ))}
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        );
-      })}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          );
+        })}
+      </div>
 
       {!hideSessionActions && (
         <>
