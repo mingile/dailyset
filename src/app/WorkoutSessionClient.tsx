@@ -34,6 +34,7 @@ import {
   getPreviousSets,
   type PreviousSets,
 } from "@/lib/previous-record";
+import type { SessionExercisesActions } from "@/hooks/useSessionExercises";
 import { useTimerTick } from "@/hooks/useTimerTick";
 import {
   createRunningExerciseTimer,
@@ -91,19 +92,10 @@ function formatElapsedTime(seconds: number): string {
 export function WorkoutSessionClient({
   exercises,
   displayWeightUnit,
-  addSet,
-  changeWeight,
-  changeReps,
-  toggleDone,
-  changeMemo,
-  deleteSet,
-  changeEquipment,
-  changeUnit,
-  changeSetType,
+  actions,
   sessionMetadata,
   exerciseTimers,
   onExerciseTimersChange,
-  addExercisesToSession,
   onCompleteWorkout,
   saving,
   hideSessionActions = false,
@@ -113,29 +105,27 @@ export function WorkoutSessionClient({
     weight: number,
     unit: "kg" | "lb",
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
-  addSet: (exIdx: number) => void;
-  changeWeight: (exIdx: number, setIdx: number, nextWeight: number) => void;
-  changeReps: (exIdx: number, setIdx: number, delta: number) => void;
-  toggleDone: (exIdx: number, setIdx: number) => void;
-  changeMemo: (exIdx: number, setIdx: number, value: string) => void;
-  deleteSet: (exId: string, setIdx: number) => void;
-  changeEquipment: (exIdx: number, setIdx: number, equipment: string) => void;
-  changeUnit: (exIdx: number, setIdx: number, unit: "kg" | "lb") => void;
-  changeSetType: (
-    exIdx: number,
-    setIdx: number,
-    setType: "warmup" | "main",
-  ) => void;
+  actions: SessionExercisesActions;
   sessionMetadata: SessionMetadata | null;
   exerciseTimers: ExerciseTimers;
   onExerciseTimersChange: (
     updater: (prev: ExerciseTimers) => ExerciseTimers,
   ) => void;
-  addExercisesToSession: (newExercises: Exercises) => void;
   onCompleteWorkout: () => void;
   saving: boolean;
   hideSessionActions?: boolean;
 }) {
+  const {
+    addSet,
+    changeWeight,
+    changeReps,
+    changeMemo,
+    deleteSet,
+    changeEquipment,
+    changeUnit,
+    changeSetType,
+    addExercisesToSession,
+  } = actions;
   const [isAddExerciseSheetOpen, setIsAddExerciseSheetOpen] = useState(false);
   const [openAccordionIndex, setOpenAccordionIndex] = useState<number | null>(
     null,
@@ -528,12 +518,8 @@ export function WorkoutSessionClient({
                           setType={set.setType || "main"}
                           isCurrent={!allSetsDone && j === currentSetIdx}
                           exId={ex.id}
-                          deleteSet={deleteSet}
-                          onWeightChange={changeWeight}
-                          onRepsDelta={changeReps}
-                          onToggleDone={toggleDone}
+                          actions={actions}
                           displayWeightUnit={displayWeightUnit}
-                          changeSetType={changeSetType}
                           unit={set.unit}
                         />
                       ))}
@@ -746,13 +732,9 @@ function Row({
   done,
   setType,
   isCurrent,
-  onWeightChange,
-  onRepsDelta,
-  onToggleDone,
   memo,
-  deleteSet,
+  actions,
   displayWeightUnit,
-  changeSetType,
   unit,
 }: {
   exId: string;
@@ -763,20 +745,15 @@ function Row({
   done: boolean;
   setType: "warmup" | "main";
   isCurrent: boolean;
-  onWeightChange: (exIdx: number, setIdx: number, nextWeight: number) => void;
-  onRepsDelta: (exIdx: number, setIdx: number, delta: number) => void;
-  onToggleDone: (exIdx: number, setIdx: number) => void;
   memo: string;
-  deleteSet: (exId: string, setIdx: number) => void;
+  actions: Pick<
+    SessionExercisesActions,
+    "deleteSet" | "changeWeight" | "changeReps" | "toggleDone" | "changeSetType"
+  >;
   displayWeightUnit: (
     weight: number,
     unit: "kg" | "lb",
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
-  changeSetType: (
-    exIdx: number,
-    setIdx: number,
-    setType: "warmup" | "main",
-  ) => void;
   unit: "kg" | "lb";
 }) {
   const { displayWeight, displayUnit } = displayWeightUnit(weight, unit);
@@ -788,13 +765,13 @@ function Row({
   function commitWeight(draft: string) {
     const nextKg = convertInputToKg(draft, unit);
     if (nextKg === null) return;
-    onWeightChange(exerciseIndex, setIndex, nextKg);
+    actions.changeWeight(exerciseIndex, setIndex, nextKg);
   }
 
   function commitReps(draft: string) {
     const nextReps = parseRepsInput(draft);
     if (nextReps === null) return;
-    onRepsDelta(exerciseIndex, setIndex, nextReps - reps);
+    actions.changeReps(exerciseIndex, setIndex, nextReps - reps);
   }
 
   function handleTouchStart(e: React.TouchEvent) {
@@ -826,7 +803,7 @@ function Row({
   }
 
   function handleConfirmDelete() {
-    deleteSet(exId, setIndex);
+    actions.deleteSet(exId, setIndex);
     setIsDeleteDialogOpen(false);
   }
 
@@ -873,7 +850,7 @@ function Row({
             aria-label={`${setLabel} 타입 전환`}
             className="flex h-12 items-center justify-center"
             onClick={() =>
-              changeSetType(
+              actions.changeSetType(
                 exerciseIndex,
                 setIndex,
                 setType === "warmup" ? "main" : "warmup",
@@ -907,7 +884,7 @@ function Row({
             aria-checked={done}
             aria-label={`${setLabel} 완료`}
             className="flex h-12 items-center justify-center text-foreground"
-            onClick={() => onToggleDone(exerciseIndex, setIndex)}
+            onClick={() => actions.toggleDone(exerciseIndex, setIndex)}
           >
             {done ? (
               <Check className="size-6" />

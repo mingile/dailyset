@@ -34,16 +34,7 @@ export function RootClient() {
   const {
     exercises,
     historyDirty,
-    deleteSet,
-    changeReps,
-    changeWeight,
-    changeMemo,
-    changeEquipment,
-    changeUnit,
-    toggleDone,
-    addSet,
-    changeSetType,
-    addExercisesToSession,
+    actions,
     hydrate,
     clearDirty,
     markDirty,
@@ -747,20 +738,11 @@ export function RootClient() {
         {!showHistory && (
           <WorkoutSessionClient
             exercises={exercises}
-            changeReps={changeReps}
-            changeWeight={changeWeight}
-            toggleDone={toggleDone}
-            addSet={addSet}
-            changeMemo={changeMemo}
-            deleteSet={deleteSet}
             displayWeightUnit={displayWeightUnit}
-            changeEquipment={changeEquipment}
-            changeUnit={changeUnit}
-            changeSetType={changeSetType}
+            actions={actions}
             sessionMetadata={sessionMetadata}
             exerciseTimers={exerciseTimers}
             onExerciseTimersChange={setExerciseTimers}
-            addExercisesToSession={addExercisesToSession}
             onCompleteWorkout={handleCompleteWorkout}
             saving={saving}
           />

@@ -5,10 +5,28 @@ import {
   sessionExercisesReducer,
 } from "@/lib/session-exercises-reducer";
 
-export function useSessionExercises() {
+/** 세션 화면이 운동 데이터를 편집할 때 쓰는 함수 모음 */
+export type SessionExercisesActions = {
+  deleteSet: (exId: string, setIdx: number) => void;
+  changeReps: (exIdx: number, setIdx: number, delta: number) => void;
+  changeWeight: (exIdx: number, setIdx: number, weight: number) => void;
+  changeMemo: (exIdx: number, setIdx: number, value: string) => void;
+  changeEquipment: (exIdx: number, setIdx: number, equipment: string) => void;
+  changeUnit: (exIdx: number, setIdx: number, unit: "kg" | "lb") => void;
+  toggleDone: (exIdx: number, setIdx: number) => void;
+  addSet: (exIdx: number) => void;
+  changeSetType: (
+    exIdx: number,
+    setIdx: number,
+    setType: "warmup" | "main",
+  ) => void;
+  addExercisesToSession: (newExercises: Exercises) => void;
+};
+
+export function useSessionExercises(initialExercises: Exercises = []) {
   const [{ exercises, historyDirty }, dispatch] = useReducer(
     sessionExercisesReducer,
-    initialSessionExercisesState,
+    { ...initialSessionExercisesState, exercises: initialExercises },
   );
 
   function deleteSet(exId: string, setIdx: number) {
@@ -79,9 +97,7 @@ export function useSessionExercises() {
     dispatch({ type: "mergeExternal", update });
   }
 
-  return {
-    exercises,
-    historyDirty,
+  const actions: SessionExercisesActions = {
     deleteSet,
     changeReps,
     changeWeight,
@@ -92,6 +108,12 @@ export function useSessionExercises() {
     addSet,
     changeSetType,
     addExercisesToSession,
+  };
+
+  return {
+    exercises,
+    historyDirty,
+    actions,
     hydrate,
     clearDirty,
     markDirty,
