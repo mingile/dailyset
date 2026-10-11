@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/sheet";
 import type { Session, SessionMetadata, DateInfo } from "./types";
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Moon, Sun, Monitor } from "lucide-react";
 import { useTheme } from "next-themes";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { toast } from "sonner";
@@ -283,11 +282,11 @@ export function HeaderControls({
               </Button>
 
               {isMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-popover rounded-lg shadow-lg border border-border py-2 z-50">
+                <div className="absolute right-0 top-full z-50 mt-2 w-64 border border-foreground bg-background">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
                       <div
-                        className={`w-3 h-3 rounded-full ${
+                        className={`size-2 rounded-full ${
                           notionReady ? "bg-green-500" : "bg-red-500"
                         }`}
                       />
@@ -299,7 +298,7 @@ export function HeaderControls({
 
                   {themeMounted && (
                     <div className="px-4 py-3 border-b border-border">
-                      <span className="text-sm font-medium mb-2 block">
+                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
                         테마
                       </span>
                       <div
@@ -309,24 +308,25 @@ export function HeaderControls({
                       >
                         {(
                           [
-                            { value: "light", icon: Sun, label: "라이트" },
-                            { value: "dark", icon: Moon, label: "다크" },
-                            { value: "system", icon: Monitor, label: "시스템" },
+                            { value: "light", label: "라이트" },
+                            { value: "dark", label: "다크" },
+                            { value: "system", label: "시스템" },
                           ] as const
-                        ).map(({ value, icon: Icon, label }) => (
-                          <Button
+                        ).map(({ value, label }) => (
+                          <button
                             key={value}
                             type="button"
-                            variant={theme === value ? "default" : "outline"}
-                            size="sm"
-                            className="h-auto flex-col gap-1 py-2 px-1"
+                            className={`h-11 border text-sm font-semibold ${
+                              theme === value
+                                ? "border-foreground bg-foreground text-background"
+                                : "border-border"
+                            }`}
                             aria-label={label}
                             aria-pressed={theme === value}
                             onClick={() => setTheme(value)}
                           >
-                            <Icon className="size-4" />
-                            <span className="text-xs">{label}</span>
-                          </Button>
+                            {label}
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -335,7 +335,7 @@ export function HeaderControls({
                   <div className="px-2 py-1">
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-sm h-auto py-2"
+                      className="h-11 w-full justify-start rounded-none text-sm font-semibold"
                       onClick={() => {
                         window.location.href = withBasePath("/settings/notion");
                         setIsMenuOpen(false);
@@ -345,7 +345,7 @@ export function HeaderControls({
                     </Button>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-sm h-auto py-2"
+                      className="h-11 w-full justify-start rounded-none text-sm font-semibold"
                       onClick={() => {
                         fetch(withBasePath("/api/notion/disconnect"), {
                           method: "POST",
