@@ -10,8 +10,8 @@ export function createLocalExercisesPayload(
   return exercises
     .map((ex) => {
       const doneSets = ex.sets
-        .map((set, i) => ({ set, setNo: i + 1 }))
-        .filter(({ set }) => set.done);
+        .filter((set) => set.done)
+        .map((set, i) => ({ set, setNo: i + 1 }));
       return {
         ...ex,
         sets: doneSets,
@@ -101,8 +101,8 @@ export function createNotionExercisesPayload(
   return exercises
     .map((ex) => {
       const unsyncedSets = ex.sets
-        .map((set, i) => ({ set, setNo: i + 1 }))
-        .filter(({ set }) => set.done && !set.synced);
+        .filter((set) => set.done && !set.synced)
+        .map((set, i) => ({ set, setNo: i + 1 }));
       return {
         ...ex,
         sets: unsyncedSets,
