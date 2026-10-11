@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useSessionExercises } from "@/hooks/useSessionExercises";
 import { useTimerTick } from "@/hooks/useTimerTick";
 import {
   elapsedSecondsFromStartedAt,
@@ -30,7 +31,24 @@ import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 import { WorkoutSessionClient } from "./WorkoutSessionClient";
 
 export function RootClient() {
-  const [exercises, setExercises] = useState<Exercises>([]);
+  const {
+    exercises,
+    historyDirty,
+    deleteSet,
+    changeReps,
+    changeWeight,
+    changeMemo,
+    changeEquipment,
+    changeUnit,
+    toggleDone,
+    addSet,
+    changeSetType,
+    addExercisesToSession,
+    hydrate,
+    clearDirty,
+    markDirty,
+    mergeExternal,
+  } = useSessionExercises();
   const [hydrated, setHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyVersion, setHistoryVersion] = useState<number>(0);
@@ -43,7 +61,6 @@ export function RootClient() {
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const [historyDirty, setHistoryDirty] = useState<boolean>(false);
   const [notionStatusLoading, setNotionStatusLoading] = useState<boolean>(true);
   const [notionConnected, setNotionConnected] = useState<boolean>(false);
   const [dbConnected, setDbConnected] = useState<boolean>(false);
@@ -163,7 +180,7 @@ export function RootClient() {
           };
         });
 
-        setExercises((prev) => {
+        mergeExternal((prev) => {
           // Exercise pageId로 필터링
           const filteredRow = rawRow.filter(
             (row: any) =>
@@ -347,15 +364,15 @@ export function RootClient() {
               targetWarmupSetCount: ex.targetWarmupSetCount ?? warmupSetCount,
             };
           });
-          setExercises(migratedExercises);
-          setSessionMetadata(parsedDraft.session);
-          setHistoryDirty(
+          hydrate(
+            migratedExercises,
             parsedDraft.historyDirty ??
               computeHistoryDirty(
                 parsedDraft.session.sessionId,
                 migratedExercises,
               ),
           );
+          setSessionMetadata(parsedDraft.session);
           if (parsedDraft.exerciseTimers) {
             setExerciseTimers(
               reconcileStoredExerciseTimers(parsedDraft.exerciseTimers),
@@ -387,7 +404,7 @@ export function RootClient() {
               targetWarmupSetCount: ex.targetWarmupSetCount ?? warmupSetCount,
             };
           });
-          setExercises(migratedExercises);
+          hydrate(migratedExercises, false);
         }
         localStorage.removeItem("workout.session.v1");
       }
@@ -434,10 +451,6 @@ export function RootClient() {
     entryMode,
   ]);
 
-  function markHistoryDirty() {
-    setHistoryDirty(true);
-  }
-
   function displayWeightUnit(
     weight: number,
     unit: "kg" | "lb",
@@ -454,209 +467,6 @@ export function RootClient() {
     return { displayWeight, displayUnit };
   }
 
-  function deleteSet(exId: string, setIdx: number) {
-    markHistoryDirty();
-    setExercises((prev) => {
-      return prev.map((ex) => {
-        if (ex.id !== exId) return ex;
-        if (ex.sets.length === 1) return ex;
-
-        const deletedSet = ex.sets[setIdx];
-        if (!deletedSet) return ex;
-
-        const deletedSetType = deletedSet.setType ?? "main";
-
-        let newTargetWarmup = ex.targetWarmupSetCount ?? 0;
-        let newTargetMain = ex.targetMainSetCount ?? 0;
-
-        if (deletedSetType === "warmup") {
-          newTargetWarmup = Math.max(0, newTargetWarmup - 1);
-        } else if (deletedSetType === "main") {
-          newTargetMain = Math.max(1, newTargetMain - 1);
-        }
-
-        return {
-          ...ex,
-          targetWarmupSetCount: newTargetWarmup,
-          targetMainSetCount: newTargetMain,
-          sets: ex.sets.filter((set, idx) => idx !== setIdx),
-        };
-      });
-    });
-  }
-
-  function changeReps(exIdx: number, setIdx: number, delta: number) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, reps: Math.max(0, s.reps + delta), synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function changeWeight(exIdx: number, setIdx: number, nextWeight: number) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, weight: nextWeight, synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function changeMemo(exIdx: number, setIdx: number, value: string) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, memo: value, synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function changeEquipment(exIdx: number, setIdx: number, equipment: string) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, equipment, synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function changeUnit(exIdx: number, setIdx: number, unit: "kg" | "lb") {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, unit, synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function toggleDone(exIdx: number, setIdx: number) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, done: !s.done };
-          }),
-        };
-      }),
-    );
-  }
-  function addSet(exIdx: number) {
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-        return {
-          ...ex,
-          sets: [
-            ...ex.sets,
-            {
-              weight: ex.sets[ex.sets.length - 1].weight,
-              reps: ex.sets[ex.sets.length - 1].reps,
-              done: false,
-              synced: false,
-              equipment: ex.sets[ex.sets.length - 1].equipment,
-              memo: "",
-              unit: ex.sets[ex.sets.length - 1].unit,
-              setType: ex.sets[ex.sets.length - 1].setType || "main",
-            },
-          ],
-        };
-      }),
-    );
-  }
-
-  function changeSetType(
-    exIdx: number,
-    setIdx: number,
-    newSetType: "warmup" | "main",
-  ) {
-    markHistoryDirty();
-    setExercises((prev) =>
-      prev.map((ex, i) => {
-        if (i !== exIdx) return ex;
-
-        const oldSetType = ex.sets[setIdx]?.setType ?? "main";
-
-        if (oldSetType === newSetType) return ex;
-
-        let newTargetWarmup = ex.targetWarmupSetCount ?? 0;
-        let newTargetMain = ex.targetMainSetCount ?? 0;
-
-        if (oldSetType === "main" && newSetType === "warmup") {
-          newTargetMain = Math.max(1, newTargetMain - 1);
-          newTargetWarmup = newTargetWarmup + 1;
-        } else if (oldSetType === "warmup" && newSetType === "main") {
-          newTargetWarmup = Math.max(0, newTargetWarmup - 1);
-          newTargetMain = newTargetMain + 1;
-        }
-
-        return {
-          ...ex,
-          targetWarmupSetCount: newTargetWarmup,
-          targetMainSetCount: newTargetMain,
-          sets: ex.sets.map((s, j) => {
-            if (j !== setIdx) return s;
-            return { ...s, setType: newSetType, synced: false };
-          }),
-        };
-      }),
-    );
-  }
-
-  function addExercisesToSession(newExercises: Exercises) {
-    markHistoryDirty();
-    setExercises((prev) => {
-      const existingPageIds = new Set(
-        prev.map((ex) => ex.exercisePageId).filter(Boolean),
-      );
-
-      const uniqueNewExercises = newExercises.filter(
-        (ex) => !existingPageIds.has(ex.exercisePageId),
-      );
-
-      return [...prev, ...uniqueNewExercises];
-    });
-  }
-
   function onSavedHistory() {
     setHistoryVersion((v) => v + 1);
   }
@@ -665,7 +475,7 @@ export function RootClient() {
     localStorage.removeItem("workout.currentSession.v1");
     setSessionMetadata(null);
     setExerciseTimers({});
-    setHistoryDirty(false);
+    clearDirty();
     setEntryMode("library");
   }
 
@@ -812,7 +622,7 @@ export function RootClient() {
     const nextSessions = [historyPayload, ...filtered];
     localStorage.setItem(sessionKey, JSON.stringify(nextSessions));
     onSavedHistory();
-    setHistoryDirty(false);
+    clearDirty();
 
     return { ok: true, savedAt };
   }
@@ -856,7 +666,7 @@ export function RootClient() {
   }
 
   function changeSessionName(newName: string) {
-    markHistoryDirty();
+    markDirty();
     setSessionMetadata((prev) => {
       if (!prev) return prev;
       return {
@@ -909,9 +719,8 @@ export function RootClient() {
     return (
       <LibraryClient
         onConfirmSelection={(draft) => {
-          setExercises(draft.exercises);
+          hydrate(draft.exercises, false);
           setSessionMetadata(draft.session);
-          setHistoryDirty(false);
           setEntryMode("session");
         }}
       />
