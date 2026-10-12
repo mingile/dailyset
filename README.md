@@ -2,7 +2,7 @@
 
 운동 기록에 집중한 미니멀 웹앱
 
-🔗 **배포:** https://daily.mingile.com/dailyset
+🔗 **배포:** https://daily.mingile.com/dailyset/app
 
 <img src="./.github/assets/screenshot.jpg" alt="Daily Set 화면" width="300" />
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { SessionClock } from "@/app/SessionClock";
+import type { Exercises, ExerciseTimers, SessionMetadata } from "@/app/types";
 import { WorkoutSessionClient } from "@/app/WorkoutSessionClient";
 import { useSessionExercises } from "@/hooks/useSessionExercises";
-import type { ExerciseTimers, Exercises, SessionMetadata } from "@/app/types";
 import { kgToLb } from "@/lib/weightUnit";
 
 const DEMO_SESSION_ID = "landing-demo-session";
@@ -44,6 +45,15 @@ function createInitialSessionMetadata(): SessionMetadata {
   };
 }
 
+function formatDemoDateLabel(startedAt: string): string {
+  const date = new Date(startedAt);
+  const dayOfWeek = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][
+    date.getDay()
+  ];
+
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()} ${dayOfWeek}`;
+}
+
 export function LandingSessionDemo() {
   const { exercises, actions } = useSessionExercises(INITIAL_EXERCISES);
   const [sessionMetadata, setSessionMetadata] = useState<SessionMetadata>(
@@ -51,6 +61,11 @@ export function LandingSessionDemo() {
   );
   const [sessionNameInput, setSessionNameInput] = useState("Daily Set 세션");
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function displayWeightUnit(
     weight: number,
@@ -70,30 +85,51 @@ export function LandingSessionDemo() {
   }
 
   return (
-    <div className="dark mx-auto w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#27272A] text-zinc-50 shadow-sm">
-      <div className="border-b border-white/10 px-2 py-2">
-        <input
-          type="text"
-          value={sessionNameInput}
-          onChange={(e) => setSessionNameInput(e.target.value)}
-          onBlur={handleSessionNameBlur}
-          placeholder="세션 이름을 입력하세요"
-          aria-label="세션 이름"
-          className="w-full rounded-md bg-transparent px-1 py-1.5 text-xl font-medium text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#F2EC00]/50"
-        />
+    <div className="w-full max-w-md">
+      <div className="space-y-3 pt-1 pb-2">
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-7">
+            <div className="px-1 text-sm text-muted-foreground">
+              {mounted
+                ? formatDemoDateLabel(sessionMetadata.startedAt)
+                : "\u00A0"}
+            </div>
+            <input
+              type="text"
+              value={sessionNameInput}
+              onChange={(e) => setSessionNameInput(e.target.value)}
+              onBlur={handleSessionNameBlur}
+              placeholder="세션 이름을 입력하세요"
+              aria-label="세션 이름"
+              className="w-full truncate bg-transparent px-1 py-1 text-2xl font-bold tracking-tight rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div className="min-w-0 flex-3 whitespace-nowrap pb-2 text-right text-2xl font-bold tabular-nums leading-none">
+            {mounted ? (
+              <SessionClock startedAt={sessionMetadata.startedAt} />
+            ) : (
+              "00:00"
+            )}
+          </div>
+        </div>
+
+        <div className="border-b border-foreground" />
       </div>
 
-      <WorkoutSessionClient
-        exercises={exercises}
-        displayWeightUnit={displayWeightUnit}
-        actions={actions}
-        sessionMetadata={sessionMetadata}
-        exerciseTimers={exerciseTimers}
-        onExerciseTimersChange={setExerciseTimers}
-        onCompleteWorkout={() => {}}
-        saving={false}
-        hideSessionActions
-      />
+      {/* WorkoutSessionClient의 main px-4를 상쇄해 헤더 Divider와 같은 열에 맞춘다 */}
+      <div className="-mx-4">
+        <WorkoutSessionClient
+          exercises={exercises}
+          displayWeightUnit={displayWeightUnit}
+          actions={actions}
+          sessionMetadata={sessionMetadata}
+          exerciseTimers={exerciseTimers}
+          onExerciseTimersChange={setExerciseTimers}
+          onCompleteWorkout={() => {}}
+          saving={false}
+          hideSessionActions
+        />
+      </div>
     </div>
   );
 }
