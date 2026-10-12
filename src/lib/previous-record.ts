@@ -108,7 +108,7 @@ export function getPreviousRecord(
 
 export type PreviousSets = {
   savedAt: string;
-  sets: { weight: number; reps: number; equipment: string }[];
+  sets: { weight: number; reps: number; equipment: string; memo: string }[];
 };
 
 /**
@@ -136,13 +136,19 @@ export function getPreviousSets(
 
     const toPreviousSets = (
       savedAt: string,
-      sets: { weight: number; reps: number; equipment: string }[],
+      sets: {
+        weight: number;
+        reps: number;
+        equipment: string;
+        memo?: string;
+      }[],
     ): PreviousSets => ({
       savedAt,
       sets: sets.map((set) => ({
         weight: set.weight,
         reps: set.reps,
         equipment: set.equipment,
+        memo: set.memo ?? "",
       })),
     });
 
