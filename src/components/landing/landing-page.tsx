@@ -46,9 +46,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section aria-label="Session demo" className="bg-white/3">
+        <section aria-label="Session demo">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-12">
-            <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground mb-4">
+            <span className="mb-4 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
               Session Demo
             </span>
             <LandingSessionDemo />
@@ -71,12 +71,15 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section aria-label="Product philosophy">
+        <section
+          aria-label="Product philosophy"
+          className="border-t border-border"
+        >
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-20">
             <div className="max-w-xl text-left">
               <SectionLabel index="01" />
               <div className="space-y-4">
-                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                   운동 기록은
                   <br />
                   복잡할 필요가 없습니다.
@@ -98,12 +101,12 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section aria-label="Local-first">
+        <section aria-label="Local-first" className="border-t border-border">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-20">
             <div className="max-w-xl text-left">
               <SectionLabel index="02" />
               <div className="space-y-4">
-                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                   기록은 먼저
                   <br />내 기기에 저장됩니다.
                 </p>
@@ -117,12 +120,12 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section aria-label="Notion backup">
+        <section aria-label="Notion backup" className="border-t border-border">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-20">
             <div className="max-w-xl text-left">
               <SectionLabel index="03" />
               <div className="space-y-4">
-                <p className="text-2xl font-medium tracking-tight sm:text-3xl">
+                <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                   Notion 연결을 통해
                   <br />
                   기록을 백업할 수 있습니다.
