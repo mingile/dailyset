@@ -23,9 +23,9 @@ test.describe("PWA manifest", () => {
 
 test.describe("PWA landing", () => {
   test("loads the landing page shell", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(withBasePath("/"));
     await expect(
-      page.getByRole("heading", { name: /기록은 가볍게/ }),
+      page.getByRole("heading", { name: /저번에.*했더라/ }),
     ).toBeVisible();
   });
 });
