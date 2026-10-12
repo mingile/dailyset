@@ -87,14 +87,7 @@ export function LandingPage() {
                 <p className="text-lg leading-relaxed text-muted-foreground">
                   필요한 것은
                   <br />
-                  세트, 중량, 반복 수.
-                </p>
-                <p className="text-lg leading-relaxed text-muted-foreground">
-                  Daily Set는
-                  <br />
-                  운동 흐름을 방해하지 않는
-                  <br />
-                  기록 도구입니다.
+                  세트, 중량, 횟수 뿐.
                 </p>
               </div>
             </div>
@@ -131,9 +124,7 @@ export function LandingPage() {
                   기록을 백업할 수 있습니다.
                 </p>
                 <p className="text-lg leading-relaxed text-muted-foreground">
-                  하지만 Daily Set는
-                  <br />
-                  연동 없이도 사용할 수 있습니다.
+                  별도 Notion 데이터베이스 템플릿이 필요합니다.
                 </p>
               </div>
             </div>
