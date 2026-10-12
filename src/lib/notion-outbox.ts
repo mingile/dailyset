@@ -20,6 +20,8 @@ export type NotionOutboxJob = {
   payload: NotionOutboxPayload;
   status: NotionOutboxStatus;
   attempts: number;
+  /** 사용자가 failed 작업을 다시 보낸 횟수. 0이거나 없으면 최초 전송. */
+  retryCount?: number;
   lastError?: string;
   failedReason?: string;
   createdAt: string;
@@ -154,7 +156,13 @@ export function retryFailed(
 ): NotionOutboxJob[] {
   return updateJob(jobs, sessionId, (job) =>
     job.status === "failed"
-      ? { ...job, status: "pending", failedReason: undefined, updatedAt: now }
+      ? {
+          ...job,
+          status: "pending",
+          failedReason: undefined,
+          retryCount: (job.retryCount ?? 0) + 1,
+          updatedAt: now,
+        }
       : job,
   );
 }
@@ -166,7 +174,89 @@ export function removeJob(
   return jobs.filter((job) => job.sessionId !== sessionId);
 }
 
-/** 자동 재전송 대상. queued 작업의 재확인은 Block 5에서 판단한다. */
+export function selectFailedJobs(jobs: NotionOutboxJob[]): NotionOutboxJob[] {
+  return jobs.filter((job) => job.status === "failed");
+}
+
+/** GET /api/sync/status 응답의 작업 하나 */
+export type NotionServerJob = {
+  sessionId: string;
+  savedAt: string;
+  retryNo?: number;
+  status: "done" | "failed";
+  reason?: string;
+};
+
+/**
+ * 서버 처리 결과로 queued 작업을 정리한다.
+ * - done → outbox에서 제거
+ * - failed → markFailed. 단, 서버 기록의 retryNo가 작업의 retryCount보다 작으면
+ *   다시 보내기 이전 시도의 실패 기록이므로 무시한다.
+ */
+export function reconcileJobs(
+  jobs: NotionOutboxJob[],
+  serverJobs: NotionServerJob[],
+  now: string,
+): NotionOutboxJob[] {
+  let next = jobs;
+  for (const job of jobs) {
+    if (job.status !== "queued") continue;
+    const server = serverJobs.find(
+      (s) => s.sessionId === job.sessionId && s.savedAt === job.savedAt,
+    );
+    if (!server) continue;
+
+    if (server.status === "done") {
+      next = removeJob(next, job.sessionId);
+    } else if ((server.retryNo ?? 0) >= (job.retryCount ?? 0)) {
+      next = markFailed(
+        next,
+        job.sessionId,
+        server.reason ?? "Notion 동기화 실패",
+        now,
+      );
+    }
+  }
+  return next;
+}
+
+export type NotionReconcileResult = { done: number; failed: number };
+
+const MAX_STATUS_SESSION_IDS = 50;
+
+/** queued 작업의 서버 처리 결과를 조회해 outbox에 반영한다. 조회에 실패하면 아무것도 바꾸지 않는다. */
+export async function reconcileNotionOutbox(): Promise<NotionReconcileResult> {
+  const empty = { done: 0, failed: 0 };
+  const queued = readOutbox()
+    .filter((job) => job.status === "queued")
+    .slice(0, MAX_STATUS_SESSION_IDS);
+  if (queued.length === 0) return empty;
+
+  try {
+    const ids = queued.map((job) => encodeURIComponent(job.sessionId));
+    const res = await fetch(
+      withBasePath(`/api/sync/status?sessionIds=${ids.join(",")}`),
+    );
+    if (!res.ok) return empty;
+
+    const data = (await res.json()) as { jobs?: NotionServerJob[] };
+    if (!Array.isArray(data.jobs)) return empty;
+
+    // await 이후의 최신 outbox에 적용한다.
+    const before = readOutbox();
+    const after = reconcileJobs(before, data.jobs, new Date().toISOString());
+    if (after !== before) writeOutbox(after);
+
+    return {
+      done: before.length - after.length,
+      failed: selectFailedJobs(after).length - selectFailedJobs(before).length,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/** 자동 재전송 대상. queued 작업의 서버 결과 확인은 reconcileNotionOutbox가 맡는다. */
 export function selectPendingJobs(jobs: NotionOutboxJob[]): NotionOutboxJob[] {
   return jobs.filter((job) => job.status === "pending");
 }
@@ -214,7 +304,11 @@ async function sendJob(job: NotionOutboxJob): Promise<NotionFlushResult> {
     const res = await fetch(withBasePath("/api/sync/enqueue"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(job.payload),
+      body: JSON.stringify(
+        job.retryCount
+          ? { ...job.payload, retryNo: job.retryCount }
+          : job.payload,
+      ),
     });
 
     if (res.ok) {

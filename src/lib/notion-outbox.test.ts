@@ -9,9 +9,12 @@ import {
   parseOutbox,
   readLastKnownDbConnected,
   readOutbox,
+  reconcileJobs,
+  reconcileNotionOutbox,
   recordAttemptFailure,
   removeJob,
   retryFailed,
+  selectFailedJobs,
   selectPendingJobs,
   writeLastKnownDbConnected,
   writeOutbox,
@@ -390,6 +393,169 @@ describe("flushNotionOutbox", () => {
     expect(await first).toEqual([{ sessionId: "s1", outcome: "queued" }]);
     expect(await second).toEqual([{ sessionId: "s2", outcome: "queued" }]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("retryFailed / selectFailedJobs", () => {
+  it("다시 보낼 때마다 retryCount가 1씩 늘어난다", () => {
+    let jobs = markFailed(addJob([], makePayload("s1"), T0), "s1", "x", T1);
+    jobs = retryFailed(jobs, "s1", T2);
+    expect(jobs[0].retryCount).toBe(1);
+
+    jobs = markFailed(jobs, "s1", "x", T2);
+    jobs = retryFailed(jobs, "s1", T2);
+    expect(jobs[0].retryCount).toBe(2);
+  });
+
+  it("failed 작업만 선택한다", () => {
+    let jobs = addJob([], makePayload("s1"), T0);
+    jobs = addJob(jobs, makePayload("s2", T1), T1);
+    jobs = markFailed(jobs, "s2", "x", T2);
+    expect(selectFailedJobs(jobs).map((j) => j.sessionId)).toEqual(["s2"]);
+  });
+});
+
+describe("reconcileJobs", () => {
+  const queued = (id: string, retryCount?: number) => {
+    const jobs = markQueued(addJob([], makePayload(id), T0), id, T1);
+    return retryCount ? [{ ...jobs[0], retryCount }] : jobs;
+  };
+
+  it("서버가 done이면 작업을 제거한다", () => {
+    const jobs = reconcileJobs(
+      queued("s1"),
+      [{ sessionId: "s1", savedAt: T0, status: "done" }],
+      T2,
+    );
+    expect(jobs).toEqual([]);
+  });
+
+  it("서버가 failed면 reason과 함께 failed로 바꾼다", () => {
+    const [job] = reconcileJobs(
+      queued("s1"),
+      [{ sessionId: "s1", savedAt: T0, status: "failed", reason: "401" }],
+      T2,
+    );
+    expect(job.status).toBe("failed");
+    expect(job.failedReason).toBe("401");
+  });
+
+  it("다시 보내기 이전 시도의 failed 기록은 무시한다", () => {
+    const original = queued("s1", 1);
+    const jobs = reconcileJobs(
+      original,
+      [{ sessionId: "s1", savedAt: T0, retryNo: 0, status: "failed" }],
+      T2,
+    );
+    expect(jobs).toBe(original);
+  });
+
+  it("같은 retryNo의 failed 기록은 반영한다", () => {
+    const [job] = reconcileJobs(
+      queued("s1", 1),
+      [{ sessionId: "s1", savedAt: T0, retryNo: 1, status: "failed" }],
+      T2,
+    );
+    expect(job.status).toBe("failed");
+  });
+
+  it("서버 기록이 없거나 queued가 아니면 그대로 둔다", () => {
+    const pending = addJob([], makePayload("s1"), T0);
+    const server = [{ sessionId: "s1", savedAt: T0, status: "done" as const }];
+    expect(reconcileJobs(pending, server, T2)).toBe(pending);
+    expect(reconcileJobs(queued("s1"), [], T2)).toHaveLength(1);
+  });
+
+  it("savedAt이 다른 서버 기록은 다른 작업으로 본다", () => {
+    const original = queued("s1");
+    const jobs = reconcileJobs(
+      original,
+      [{ sessionId: "s1", savedAt: T2, status: "done" }],
+      T2,
+    );
+    expect(jobs).toBe(original);
+  });
+});
+
+describe("reconcileNotionOutbox", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("queued 작업의 sessionId로 상태를 조회해 outbox에 반영한다", async () => {
+    let jobs = markQueued(addJob([], makePayload("s1"), T0), "s1", T1);
+    jobs = markQueued(addJob(jobs, makePayload("s2", T1), T1), "s2", T1);
+    jobs = addJob(jobs, makePayload("s3", T2), T2);
+    stubBrowser({ jobs: JSON.stringify(jobs) });
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        jobs: [
+          { sessionId: "s1", savedAt: T0, retryNo: 0, status: "done" },
+          {
+            sessionId: "s2",
+            savedAt: T1,
+            retryNo: 0,
+            status: "failed",
+            reason: "404",
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await reconcileNotionOutbox();
+
+    expect(result).toEqual({ done: 1, failed: 1 });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "/dailyset/api/sync/status?sessionIds=s1,s2",
+    );
+    expect(readOutbox().map((j) => [j.sessionId, j.status])).toEqual([
+      ["s2", "failed"],
+      ["s3", "pending"],
+    ]);
+  });
+
+  it("queued 작업이 없으면 요청하지 않는다", async () => {
+    stubBrowser({ jobs: JSON.stringify(addJob([], makePayload("s1"), T0)) });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await reconcileNotionOutbox()).toEqual({ done: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("조회가 실패하면 outbox를 바꾸지 않는다", async () => {
+    const jobs = markQueued(addJob([], makePayload("s1"), T0), "s1", T1);
+    stubBrowser({ jobs: JSON.stringify(jobs) });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    expect(await reconcileNotionOutbox()).toEqual({ done: 0, failed: 0 });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(500, {})));
+    expect(await reconcileNotionOutbox()).toEqual({ done: 0, failed: 0 });
+    expect(readOutbox()).toEqual(jobs);
+  });
+});
+
+describe("다시 보내기 전송", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("retryCount가 있으면 body에 retryNo를 붙이고, 없으면 붙이지 않는다", async () => {
+    const payload = makePayload("s1");
+    const failed = markFailed(addJob([], payload, T0), "s1", "x", T1);
+    stubBrowser({ jobs: JSON.stringify(retryFailed(failed, "s1", T2)) });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(202, { ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await flushNotionOutbox();
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      ...payload,
+      retryNo: 1,
+    });
   });
 });
 

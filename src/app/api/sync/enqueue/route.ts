@@ -28,6 +28,7 @@ type NotionSessionSyncMessage = {
   sessionName: string;
   startedAt: string;
   savedAt: string;
+  retryNo?: number;
   exercises: SyncExercise[];
 };
 
@@ -75,7 +76,8 @@ function parseRequestBody(
   }
 
   const payload = body as Record<string, unknown>;
-  const { sessionId, sessionName, startedAt, savedAt, exercises } = payload;
+  const { sessionId, sessionName, startedAt, savedAt, exercises, retryNo } =
+    payload;
 
   if (!isNonEmptyString(sessionId)) {
     return { ok: false, error: "Missing or invalid sessionId" };
@@ -88,6 +90,12 @@ function parseRequestBody(
   }
   if (!isNonEmptyString(savedAt)) {
     return { ok: false, error: "Missing or invalid savedAt" };
+  }
+  if (
+    retryNo !== undefined &&
+    !(Number.isInteger(retryNo) && (retryNo as number) >= 0)
+  ) {
+    return { ok: false, error: "Invalid retryNo" };
   }
   if (!Array.isArray(exercises) || exercises.length === 0) {
     return { ok: false, error: "Missing or invalid exercises" };
@@ -103,6 +111,7 @@ function parseRequestBody(
       sessionName,
       startedAt,
       savedAt,
+      ...(retryNo ? { retryNo: retryNo as number } : {}),
       exercises,
     },
   };
@@ -135,8 +144,10 @@ export async function POST(req: Request) {
   };
 
   try {
+    // 수동 재전송(retryNo > 0)은 같은 키로 보내면 큐가 중복으로 무시할 수 있어 번호를 붙인다.
+    const retrySuffix = message.retryNo ? `:r${message.retryNo}` : "";
     const { messageId } = await send(NOTION_SYNC_TOPIC, message, {
-      idempotencyKey: `${userKey}:${message.sessionId}:${message.savedAt}`,
+      idempotencyKey: `${userKey}:${message.sessionId}:${message.savedAt}${retrySuffix}`,
     });
 
     return NextResponse.json(

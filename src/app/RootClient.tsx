@@ -11,6 +11,9 @@ import {
   flushNotionOutbox,
   readLastKnownDbConnected,
   readOutbox,
+  reconcileNotionOutbox,
+  retryFailed,
+  selectFailedJobs,
   selectPendingJobs,
   writeLastKnownDbConnected,
   writeOutbox,
@@ -48,6 +51,7 @@ export function RootClient() {
   const [hydrated, setHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyVersion, setHistoryVersion] = useState<number>(0);
+  const [unsyncedSessionIds, setUnsyncedSessionIds] = useState<string[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
   const [entryMode, setEntryMode] = useState<"loading" | "session" | "library">(
     "loading",
@@ -412,6 +416,7 @@ export function RootClient() {
     } finally {
       const hasDraft = !!localStorage.getItem("workout.currentSession.v1");
       setEntryMode(hasDraft ? "session" : "library");
+      refreshUnsyncedSessionIds();
       setHydrated(true);
     }
   }, []);
@@ -466,6 +471,17 @@ export function RootClient() {
 
   function onSavedHistory() {
     setHistoryVersion((v) => v + 1);
+    refreshUnsyncedSessionIds();
+  }
+
+  /** outbox의 failed 작업을 화면 state에 반영한다. */
+  function refreshUnsyncedSessionIds() {
+    const ids = selectFailedJobs(readOutbox()).map((job) => job.sessionId);
+    setUnsyncedSessionIds((prev) =>
+      prev.length === ids.length && prev.every((id, i) => id === ids[i])
+        ? prev
+        : ids,
+    );
   }
 
   function startNewSession() {
@@ -501,10 +517,15 @@ export function RootClient() {
     if (!hydrated || notionStatusLoading) return;
 
     async function flushPendingNotionJobs() {
+      // 서버 처리 결과 확인은 노션 연결 상태와 무관하게 queued 작업이 있으면 한다.
+      await reconcileNotionOutbox();
+      refreshUnsyncedSessionIds();
+
       if (!canSyncNotion()) return;
       if (selectPendingJobs(readOutbox()).length === 0) return;
 
       const results = await flushNotionOutbox();
+      refreshUnsyncedSessionIds();
       const queued = results.filter((r) => r.outcome === "queued").length;
       if (queued > 0) {
         toast.success(`Notion 동기화 요청 ${queued}건 완료`, {
@@ -529,6 +550,41 @@ export function RootClient() {
     // canSyncNotion은 dbConnected를 읽으므로 dbConnected 변경 시 다시 등록한다.
     // biome-ignore lint/correctness/useExhaustiveDependencies: 위 이유
   }, [hydrated, notionStatusLoading, dbConnected]);
+
+  /** 기록 화면에서 "다시 보내기"를 누른 failed 작업을 pending으로 되돌리고 바로 전송한다. */
+  async function handleRetryNotionJob(sessionId: string) {
+    writeOutbox(retryFailed(readOutbox(), sessionId, new Date().toISOString()));
+    refreshUnsyncedSessionIds();
+
+    if (!canSyncNotion()) {
+      toast.info("Notion 미연결", {
+        description: "연결되면 다시 보냅니다.",
+        duration: 2000,
+      });
+      return;
+    }
+
+    const results = await flushNotionOutbox();
+    refreshUnsyncedSessionIds();
+    const result = results.find((r) => r.sessionId === sessionId);
+
+    if (!result) {
+      toast.info("오프라인", {
+        description: "연결되면 Notion에 자동으로 저장됩니다.",
+        duration: 3000,
+      });
+    } else if (result.outcome === "queued") {
+      toast.success("Notion 동기화 요청 완료", {
+        description: "백그라운드에서 저장됩니다.",
+        duration: 2000,
+      });
+    } else {
+      toast.warning("Notion 동기화 요청 실패", {
+        description: result.error,
+        duration: 3000,
+      });
+    }
+  }
 
   /** 완료한 세션을 outbox에 기록하고 바로 enqueue를 시도한다. 실패해도 outbox에 남는다. */
   async function queueNotionSessionSync(savedAt: string): Promise<void> {
@@ -589,6 +645,7 @@ export function RootClient() {
     }
 
     const results = await flushNotionOutbox();
+    refreshUnsyncedSessionIds();
     const result = results.find((r) => r.sessionId === sessionId);
 
     if (!result) {
@@ -792,6 +849,8 @@ export function RootClient() {
           setShowHistory={setShowHistory}
           historyVersion={historyVersion}
           onHistoryChanged={onSavedHistory}
+          unsyncedSessionIds={unsyncedSessionIds}
+          onRetryNotionJob={handleRetryNotionJob}
           onStartNewSession={handleStartNewSession}
         />
         {!showHistory && (
@@ -814,6 +873,8 @@ export function RootClient() {
               selectedDate={selectedDate}
               notionReady={dbConnected}
               onHistoryChanged={onSavedHistory}
+              unsyncedSessionIds={unsyncedSessionIds}
+              onRetryNotionJob={handleRetryNotionJob}
             />
           </div>
         )}
