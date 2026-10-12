@@ -22,7 +22,7 @@ export function PwaInstallPrompt() {
           )}
         </div>
 
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="session-surface session-font min-w-0 flex-1 space-y-3">
           <div className="space-y-1">
             <p className="text-sm font-medium">Daily Set 앱으로 설치</p>
             {showInstallPrompt ? (
