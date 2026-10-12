@@ -85,7 +85,7 @@ export function LandingSessionDemo() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md">
+    <div className="w-full max-w-md">
       <div className="space-y-3 pt-1 pb-2">
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-7">
