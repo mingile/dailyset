@@ -36,7 +36,7 @@ export async function mockNotionConnected(page: Page) {
 export async function openLibrarySession(page: Page, exerciseName = "랫풀다운") {
   await dismissInstallPrompt(page);
   await mockNotionDisconnected(page);
-  await page.goto("/app");
+  await page.goto(withBasePath("/app"));
   await page.getByRole("heading", { name: "운동 라이브러리" }).waitFor();
   await page.getByText(exerciseName, { exact: true }).click();
   await page.getByRole("button", { name: /선택 완료/ }).click();

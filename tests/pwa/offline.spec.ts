@@ -6,7 +6,7 @@ test.describe("PWA offline scenario", () => {
     await dismissInstallPrompt(page);
     await mockNotionDisconnected(page);
 
-    await page.goto("/app");
+    await page.goto(withBasePath("/app"));
     await expect(
       page.getByRole("heading", { name: "운동 라이브러리" }),
     ).toBeVisible();
