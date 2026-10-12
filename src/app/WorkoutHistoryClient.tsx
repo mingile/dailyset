@@ -359,10 +359,6 @@ export function WorkoutHistoryClient({
                       const partExercises = partGrouped.get(part) || [];
                       return (
                         <div key={part}>
-                          <h4 className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                            {part}
-                          </h4>
-
                           <div className="mt-1 space-y-3">
                             {partExercises.map((ex) => (
                               <div key={ex.id}>

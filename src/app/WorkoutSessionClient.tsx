@@ -57,6 +57,7 @@ const EQUIPMENT_LABELS: Record<string, string> = {
 };
 
 const SET_ROW_GRID = "grid-cols-[2.75rem_4rem_minmax(0,1fr)_4rem_2.75rem]";
+const PREVIOUS_ROW_GRID = "grid-cols-[3rem_minmax(0,5rem)_3rem_minmax(0,1fr)]";
 
 function parseRepsInput(value: string): number | null {
   const trimmed = value.trim();
@@ -432,7 +433,7 @@ export function WorkoutSessionClient({
                       type="text"
                       aria-label="현재 세트 메모"
                       disabled={!currentSet}
-                      className="mt-3 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-3 text-sm outline-none focus:border-(--session-accent)"
+                      className="mt-3 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-3 text-sm outline-none focus:border-(--session-focus)"
                       value={currentSet?.memo ?? ""}
                       onChange={(e) =>
                         changeMemo(i, currentSetIdx, e.target.value)
@@ -444,11 +445,11 @@ export function WorkoutSessionClient({
                     <div
                       className={`grid ${SET_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground`}
                     >
-                      <span className="pl-2">Set</span>
+                      <span className="pl-2">세트</span>
                       <span />
-                      <span>Weight</span>
-                      <span>Reps</span>
-                      <span className="text-center">Done</span>
+                      <span>무게</span>
+                      <span>횟수</span>
+                      <span className="text-center">완료</span>
                     </div>
                     <div className="border-t border-border">
                       {ex.sets.map((set, j) => (
@@ -543,6 +544,11 @@ function PreviousRecord({
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
 }) {
   const [record, setRecord] = useState<PreviousSets | null>(null);
+  const [memoSheetOpen, setMemoSheetOpen] = useState(false);
+  const [selectedMemo, setSelectedMemo] = useState<{
+    setNo: number;
+    memo: string;
+  } | null>(null);
 
   useEffect(() => {
     setRecord(getPreviousSets(exerciseName, equipment, sessionId));
@@ -562,7 +568,15 @@ function PreviousRecord({
         <span>/</span>
         <span className="tabular-nums">{dateLabel}</span>
       </div>
-      <div className="mt-1">
+      <div
+        className={`mt-4 grid ${PREVIOUS_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em]`}
+      >
+        <span className="pl-2">세트</span>
+        <span>무게</span>
+        <span>횟수</span>
+        <span>메모</span>
+      </div>
+      <div className="border-t border-border">
         {record.sets.map((set, index) => {
           const { displayWeight, displayUnit } = displayWeightUnit(
             set.weight,
@@ -571,20 +585,64 @@ function PreviousRecord({
           return (
             <div
               key={index}
-              className={`grid ${SET_ROW_GRID} items-center gap-1 px-1 py-1 text-sm tabular-nums`}
+              className={`grid ${PREVIOUS_ROW_GRID} items-center gap-1 border-b border-border px-1 py-1 text-sm tabular-nums`}
             >
               <span className="pl-2">{String(index + 1).padStart(2, "0")}</span>
-              <span />
               <span>
                 {displayWeight}
                 <span className="ml-1 text-xs">{displayUnit}</span>
               </span>
               <span>{set.reps}</span>
-              <span />
+              {set.memo.trim() !== "" ? (
+                <button
+                  type="button"
+                  aria-label={`세트 ${index + 1} 메모 전문 보기`}
+                  className="-my-1 flex min-w-0 items-center self-stretch py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => {
+                    setSelectedMemo({ setNo: index + 1, memo: set.memo });
+                    setMemoSheetOpen(true);
+                  }}
+                >
+                  <span className="truncate">{set.memo}</span>
+                </button>
+              ) : (
+                <span />
+              )}
             </div>
           );
         })}
       </div>
+      <Sheet open={memoSheetOpen} onOpenChange={setMemoSheetOpen}>
+        <SheetContent
+          side="bottom"
+          showCloseButton={false}
+          className="session-surface session-font flex max-h-[85vh] flex-col gap-0 overflow-hidden"
+        >
+          <SheetHeader className="gap-0 pb-2">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-2xl font-bold tracking-tight">
+                {`세트 ${String(selectedMemo?.setNo ?? 0).padStart(2, "0")} 메모`}
+              </SheetTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                className="-mr-2 h-11 min-w-11 rounded-none px-2 text-sm font-semibold tracking-[0.1em]"
+                onClick={() => setMemoSheetOpen(false)}
+              >
+                닫기
+              </Button>
+            </div>
+            <SheetDescription>
+              {exerciseName} · {dateLabel} 이전 기록
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            <p className="whitespace-pre-wrap wrap-break-word text-base">
+              {selectedMemo?.memo}
+            </p>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -631,7 +689,7 @@ function InlineNumberField({
         type="text"
         inputMode={inputMode}
         aria-label={ariaLabel}
-        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-accent) bg-transparent p-0 py-0! outline-none`}
+        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-focus) bg-transparent p-0 py-0! outline-none`}
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
         onFocus={(e) => e.target.select()}
@@ -777,15 +835,15 @@ function Row({
           transition: "all 0.3s ease-in-out",
         }}
       >
+        {isCurrent && (
+          <>
+            <span className="pointer-events-none absolute inset-0 -z-10 bg-(--session-accent)/20" />
+            <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
+          </>
+        )}
         <div
           className={`relative grid min-h-12 ${SET_ROW_GRID} items-center gap-1 px-1 ${done ? "text-muted-foreground" : ""}`}
         >
-          {isCurrent && (
-            <>
-              <span className="pointer-events-none absolute inset-0 -z-10 bg-(--session-accent)/20" />
-              <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
-            </>
-          )}
           <span
             className={`flex h-12 items-center pl-2 text-sm tabular-nums ${isCurrent ? "font-bold" : ""}`}
           >
@@ -804,7 +862,7 @@ function Row({
             }
           >
             <span
-              className={`rounded-full border px-2 py-1 text-xs ${setType === "warmup" ? "border-foreground font-semibold" : "border-border"}`}
+              className={`rounded-full border px-2 py-1 text-xs ${setType === "main" ? "border-foreground font-semibold" : "border-border"}`}
             >
               {setType === "warmup" ? "웜업" : "본세트"}
             </span>
@@ -835,7 +893,7 @@ function Row({
             {done ? (
               <Check className="size-6" />
             ) : (
-              <span className="size-6 rounded-full border-2 border-muted-foreground/60" />
+              <span className="size-6 rounded-full border-2 border-muted-foreground/80 dark:border-muted-foreground/60" />
             )}
           </button>
         </div>
@@ -1043,7 +1101,7 @@ function AddExerciseBottomSheet({
             placeholder="운동 이름 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none placeholder:text-muted-foreground focus:border-b-2 focus:border-(--session-accent)"
+            className="h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none placeholder:text-muted-foreground focus:border-b-2 focus:border-(--session-focus)"
           />
         </div>
 

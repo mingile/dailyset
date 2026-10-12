@@ -132,8 +132,10 @@
 :root {
   --session-ink: #18181b;
   --session-surface: #f5f3ef;
-  --session-muted: #71717a;
+  --session-muted: #686871;
   --session-accent: #f2ec00;
+  /* 입력·포커스 밑줄은 비텍스트 3:1이 필요해 밝은 표면에서는 accent 대신 어두운 올리브를 쓴다 */
+  --session-focus: #857f00;
 }
 
 /* 다크모드는 기존 shadcn 다크 토큰을 따른다. 세션 다크 팔레트는 Block 7에서 점검 */
@@ -141,6 +143,7 @@
   --session-ink: var(--foreground);
   --session-surface: var(--background);
   --session-muted: var(--muted-foreground);
+  --session-focus: var(--session-accent);
 }
 
 /* 세션 화면 폰트. 폰트 교체는 layout.tsx의 --font-session 한 곳에서만 한다 */
@@ -153,6 +156,7 @@
   --background: var(--session-surface);
   --foreground: var(--session-ink);
   --muted-foreground: var(--session-muted);
+  --ring: var(--session-ink);
   background-color: var(--session-surface);
   color: var(--session-ink);
 }

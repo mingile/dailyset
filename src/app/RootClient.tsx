@@ -682,7 +682,7 @@ export function RootClient() {
 
   if (notionStatusLoading) {
     return (
-      <div className="flex flex-col h-100vh min-h-screen text-center items-center justify-center">
+      <div className=" session-surface session-font s flex flex-col h-100vh min-h-screen text-center items-center justify-center">
         Loading...
       </div>
     );
@@ -690,7 +690,7 @@ export function RootClient() {
 
   if (entryMode === "loading") {
     return (
-      <div className="flex flex-col h-100vh min-h-screen text-center items-center justify-center">
+      <div className=" session-surface session-font flex flex-col h-100vh min-h-screen text-center items-center justify-center">
         Loading...
       </div>
     );

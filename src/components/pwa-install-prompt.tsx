@@ -12,7 +12,7 @@ export function PwaInstallPrompt() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80">
+    <div className="session-surface fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="mx-auto flex max-w-lg items-start gap-3">
         <div className="mt-0.5 shrink-0 text-primary">
           {showInstallPrompt ? (
@@ -22,7 +22,7 @@ export function PwaInstallPrompt() {
           )}
         </div>
 
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className="session-font min-w-0 flex-1 space-y-3">
           <div className="space-y-1">
             <p className="text-sm font-medium">Daily Set 앱으로 설치</p>
             {showInstallPrompt ? (
