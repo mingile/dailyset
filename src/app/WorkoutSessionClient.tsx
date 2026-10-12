@@ -647,14 +647,14 @@ function PreviousRecord({
         <span className="tabular-nums">{dateLabel}</span>
       </div>
       <div
-        className={`mt-2 grid ${PREVIOUS_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em]`}
+        className={`mt-4 grid ${PREVIOUS_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em]`}
       >
         <span className="pl-2">세트</span>
         <span>무게</span>
         <span>횟수</span>
         <span>메모</span>
       </div>
-      <div>
+      <div className="border-t border-border">
         {record.sets.map((set, index) => {
           const { displayWeight, displayUnit } = displayWeightUnit(
             set.weight,
@@ -663,7 +663,7 @@ function PreviousRecord({
           return (
             <div
               key={index}
-              className={`grid ${PREVIOUS_ROW_GRID} items-center gap-1 px-1 py-1 text-sm tabular-nums`}
+              className={`grid ${PREVIOUS_ROW_GRID} items-center gap-1 border-b border-border px-1 py-1 text-sm tabular-nums`}
             >
               <span className="pl-2">{String(index + 1).padStart(2, "0")}</span>
               <span>
@@ -922,15 +922,15 @@ function Row({
           transition: "all 0.3s ease-in-out",
         }}
       >
+        {isCurrent && (
+          <>
+            <span className="pointer-events-none absolute inset-0 -z-10 bg-(--session-accent)/20" />
+            <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
+          </>
+        )}
         <div
           className={`relative grid min-h-12 ${SET_ROW_GRID} items-center gap-1 px-1 ${done ? "text-muted-foreground" : ""}`}
         >
-          {isCurrent && (
-            <>
-              <span className="pointer-events-none absolute inset-0 -z-10 bg-(--session-accent)/20" />
-              <span className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-1 bg-(--session-accent)" />
-            </>
-          )}
           <span
             className={`flex h-12 items-center pl-2 text-sm tabular-nums ${isCurrent ? "font-bold" : ""}`}
           >
