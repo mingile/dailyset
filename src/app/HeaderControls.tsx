@@ -5,6 +5,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -246,6 +247,9 @@ export function HeaderControls({
                       닫기
                     </Button>
                   </SheetClose>
+                  <SheetDescription className="sr-only">
+                    저장된 운동 기록 목록
+                  </SheetDescription>
                 </SheetHeader>
                 <div className="mt-4 overflow-y-auto h-full pb-20">
                   <WorkoutHistoryClient
