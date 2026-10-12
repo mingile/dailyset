@@ -3,6 +3,11 @@
 import { handleCallback } from "@vercel/queue";
 import { getNotionSyncErrorStatusCode } from "@/lib/notion/errors";
 import { ensureNotionSession } from "@/lib/notion/sessionEnsure";
+import {
+  recordSyncJob,
+  type SyncJobStatus,
+  toReason,
+} from "@/lib/notion/syncJobs";
 import { parseNotionSessionSyncMessage } from "@/lib/notion/syncMessage";
 import { writeNotionSets } from "@/lib/notion/writeSets";
 
@@ -31,6 +36,33 @@ function shouldAckWithoutRetry(error: unknown): boolean {
 
 function getRetryDelaySeconds(deliveryCount: number): number {
   return Math.min(300, 2 ** deliveryCount * 5);
+}
+
+// 상태 기록 실패가 노션 동기화 결과(ack/재시도)를 바꾸지 않도록 삼킨다.
+async function recordJobStatus(
+  job: {
+    userKey: string;
+    sessionId: string;
+    savedAt: string;
+    retryNo?: number;
+  },
+  status: SyncJobStatus,
+  error?: unknown,
+): Promise<void> {
+  try {
+    await recordSyncJob({
+      ...job,
+      status,
+      reason: error === undefined ? undefined : toReason(error),
+    });
+  } catch (recordError) {
+    console.error("Failed to record Notion sync job status", {
+      sessionId: job.sessionId,
+      userKey: job.userKey,
+      status,
+      error: recordError instanceof Error ? recordError.message : recordError,
+    });
+  }
 }
 
 export const POST = handleCallback(
@@ -76,6 +108,7 @@ export const POST = handleCallback(
         sessionPageId: pageId,
         created_count: result.created_count,
       });
+      await recordJobStatus(parsed, "done");
     } catch (error) {
       const statusCode = getNotionSyncErrorStatusCode(error);
 
@@ -87,6 +120,7 @@ export const POST = handleCallback(
           statusCode,
           error: error instanceof Error ? error.message : error,
         });
+        await recordJobStatus(parsed, "failed", error);
         return;
       }
 
@@ -98,6 +132,10 @@ export const POST = handleCallback(
         deliveryCount: metadata.deliveryCount,
         error: error instanceof Error ? error.message : error,
       });
+      // retry 콜백에는 메시지 본문이 없어, 마지막 시도 실패는 여기서 먼저 기록한다.
+      if (metadata.deliveryCount > MAX_DELIVERY_COUNT) {
+        await recordJobStatus(parsed, "failed", error);
+      }
       throw error;
     }
   },
