@@ -7,6 +7,15 @@ import { reconcileStoredExerciseTimers } from "@/lib/timer";
 import { kgToLb, lbToKg } from "@/lib/weightUnit";
 import { withBasePath } from "@/lib/base-path";
 import {
+  addJob,
+  flushNotionOutbox,
+  readLastKnownDbConnected,
+  readOutbox,
+  selectPendingJobs,
+  writeLastKnownDbConnected,
+  writeOutbox,
+} from "@/lib/notion-outbox";
+import {
   computeHistoryDirty,
   createHistoryPayload,
   createLocalExercisesPayload,
@@ -53,6 +62,13 @@ export function RootClient() {
   const [dbConnected, setDbConnected] = useState<boolean>(false);
 
   const savingRef = useRef<boolean>(false);
+  // 상태 조회가 실패하면 "연결 안 됨"이 아니라 "확인 못 함"이다.
+  const notionStatusUnknownRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (notionStatusLoading || notionStatusUnknownRef.current) return;
+    writeLastKnownDbConnected(dbConnected);
+  }, [notionStatusLoading, dbConnected]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -474,20 +490,61 @@ export function RootClient() {
     });
   }
 
-  async function enqueueNotionSessionSync(savedAt: string): Promise<boolean> {
-    if (!dbConnected) {
+  function canSyncNotion(): boolean {
+    if (dbConnected) return true;
+    return (
+      notionStatusUnknownRef.current && readLastKnownDbConnected() === true
+    );
+  }
+
+  useEffect(() => {
+    if (!hydrated || notionStatusLoading) return;
+
+    async function flushPendingNotionJobs() {
+      if (!canSyncNotion()) return;
+      if (selectPendingJobs(readOutbox()).length === 0) return;
+
+      const results = await flushNotionOutbox();
+      const queued = results.filter((r) => r.outcome === "queued").length;
+      if (queued > 0) {
+        toast.success(`Notion 동기화 요청 ${queued}건 완료`, {
+          duration: 2000,
+        });
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void flushPendingNotionJobs();
+      }
+    }
+
+    void flushPendingNotionJobs();
+    window.addEventListener("online", flushPendingNotionJobs);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("online", flushPendingNotionJobs);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // canSyncNotion은 dbConnected를 읽으므로 dbConnected 변경 시 다시 등록한다.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 위 이유
+  }, [hydrated, notionStatusLoading, dbConnected]);
+
+  /** 완료한 세션을 outbox에 기록하고 바로 enqueue를 시도한다. 실패해도 outbox에 남는다. */
+  async function queueNotionSessionSync(savedAt: string): Promise<void> {
+    if (!canSyncNotion()) {
       toast.info("Notion 미연결", {
         description: "로컬에만 저장되었습니다.",
         duration: 2000,
       });
-      return false;
+      return;
     }
 
     if (!sessionMetadata) {
       toast.warning("세션 정보가 없어 Notion 동기화를 건너뜁니다.", {
         duration: 2000,
       });
-      return true;
+      return;
     }
 
     const notionExercises = createNotionExercisesPayload(exercises);
@@ -496,7 +553,7 @@ export function RootClient() {
       toast.info("모든 세트가 이미 동기화됨", {
         duration: 2000,
       });
-      return true;
+      return;
     }
 
     const hasInvalidExercise = notionExercises.some((ex) => !ex.exercisePageId);
@@ -505,45 +562,55 @@ export function RootClient() {
         description: "로컬은 저장됨, Notion 동기화는 건너뜀",
         duration: 3000,
       });
-      return true;
+      return;
     }
 
-    try {
-      const enqueueResponse = await fetch(withBasePath("/api/sync/enqueue"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId: sessionMetadata.sessionId,
+    const sessionId = sessionMetadata.sessionId;
+    const saved = writeOutbox(
+      addJob(
+        readOutbox(),
+        {
+          sessionId,
           sessionName: sessionMetadata.sessionName,
           startedAt: sessionMetadata.startedAt,
           savedAt,
           exercises: notionExercises,
-        }),
+        },
+        new Date().toISOString(),
+      ),
+    );
+
+    if (!saved) {
+      toast.warning("Notion 동기화 대기열 저장 실패", {
+        description: "로컬은 저장됨, Notion 동기화는 건너뜀",
+        duration: 3000,
       });
+      return;
+    }
 
-      if (!enqueueResponse.ok) {
-        const errorData = await enqueueResponse.json();
-        toast.warning("Notion 동기화 요청 실패", {
-          description: "로컬은 저장됨: " + errorData.error,
-          duration: 3000,
-        });
-        return false;
-      }
+    const results = await flushNotionOutbox();
+    const result = results.find((r) => r.sessionId === sessionId);
 
+    if (!result) {
+      toast.info("오프라인", {
+        description: "연결되면 Notion에 자동으로 저장됩니다.",
+        duration: 3000,
+      });
+    } else if (result.outcome === "queued") {
       toast.success("Notion 동기화 요청 완료", {
         description: "백그라운드에서 저장됩니다.",
         duration: 2000,
       });
-      return true;
-    } catch (error) {
-      console.error("Sync enqueue 중 오류:", error);
+    } else if (result.outcome === "retry") {
       toast.warning("Notion 동기화 요청 실패", {
-        description: "로컬은 저장됨, 네트워크 확인 필요",
+        description: "로컬은 저장됨, 연결되면 다시 보냅니다.",
         duration: 3000,
       });
-      return false;
+    } else {
+      toast.warning("Notion 동기화 요청 실패", {
+        description: "로컬은 저장됨: " + result.error,
+        duration: 3000,
+      });
     }
   }
 
@@ -627,9 +694,7 @@ export function RootClient() {
         return;
       }
 
-      if (dbConnected) {
-        await enqueueNotionSessionSync(result.savedAt);
-      }
+      await queueNotionSessionSync(result.savedAt);
 
       startNewSession();
       toast.success("운동을 완료했습니다", {
@@ -667,12 +732,17 @@ export function RootClient() {
         cache: "no-store",
       });
 
+      if (!res.ok) {
+        throw new Error(`Notion status HTTP ${res.status}`);
+      }
       const data = await res.json();
 
+      notionStatusUnknownRef.current = false;
       setNotionConnected(!!data.notionConnected);
       setDbConnected(!!data.dbConnected);
     } catch (err) {
       console.error("Notion 상태 조회 중 오류", err);
+      notionStatusUnknownRef.current = true;
       setNotionConnected(false);
       setDbConnected(false);
     } finally {
