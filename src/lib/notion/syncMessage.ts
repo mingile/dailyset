@@ -24,6 +24,7 @@ export type NotionSessionSyncMessage = {
   sessionName: string;
   startedAt: string;
   savedAt: string;
+  retryNo?: number;
   exercises: SyncExercise[];
 };
 
@@ -102,6 +103,11 @@ export function parseNotionSessionSyncMessage(
     sessionName: (payload.sessionName as string).trim(),
     startedAt: (payload.startedAt as string).trim(),
     savedAt: (payload.savedAt as string).trim(),
+    ...(typeof payload.retryNo === "number" &&
+    Number.isInteger(payload.retryNo) &&
+    payload.retryNo > 0
+      ? { retryNo: payload.retryNo }
+      : {}),
     exercises: payload.exercises,
   };
 }

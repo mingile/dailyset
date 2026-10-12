@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Session, SavedExercise } from "./types";
 import { TrashIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { restoreHistoryFromNotion } from "@/lib/notion/restoreLocalHistory";
+import { readOutbox, removeJob, writeOutbox } from "@/lib/notion-outbox";
+import type { SavedExercise, Session } from "./types";
 
 const sessionKey = `workout.sessions.v1`;
 
@@ -33,12 +34,16 @@ export function WorkoutHistoryClient({
   selectedDate,
   notionReady = false,
   onHistoryChanged,
+  unsyncedSessionIds = [],
+  onRetryNotionJob,
 }: {
   showHistory: boolean;
   historyVersion: number;
   selectedDate: string | null;
   notionReady?: boolean;
   onHistoryChanged?: () => void;
+  unsyncedSessionIds?: string[];
+  onRetryNotionJob?: (sessionId: string) => void;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [swipingSet, setSwipingSet] = useState<string | null>(null);
@@ -135,6 +140,8 @@ export function WorkoutHistoryClient({
       (session) => session.id !== sessionId,
     );
     localStorage.setItem(sessionKey, JSON.stringify(updatedSessions));
+    // 로컬에서 지운 기록은 노션으로 다시 보내지 않는다.
+    writeOutbox(removeJob(readOutbox(), sessionId));
     onHistoryChanged?.();
   }
 
@@ -344,6 +351,22 @@ export function WorkoutHistoryClient({
                         sets
                         {durationStr && ` · ${durationStr}`}
                       </p>
+                      {unsyncedSessionIds.includes(session.id) && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xs font-bold text-destructive">
+                            노션 미동기화
+                          </span>
+                          {onRetryNotionJob && (
+                            <button
+                              type="button"
+                              onClick={() => onRetryNotionJob(session.id)}
+                              className="flex h-11 items-center border border-foreground px-3 text-sm font-semibold"
+                            >
+                              다시 보내기
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => deleteSession(session.id)}

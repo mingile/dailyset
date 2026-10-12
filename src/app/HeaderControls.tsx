@@ -1,5 +1,8 @@
 "use client";
 
+import { useTheme } from "next-themes";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -10,17 +13,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import type { Session, SessionMetadata, DateInfo } from "./types";
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { useTheme } from "next-themes";
-import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
-import { toast } from "sonner";
 import { withBasePath } from "@/lib/base-path";
 import {
   fetchWithTimeout,
   NOTION_STATUS_TIMEOUT_MS,
 } from "@/lib/fetch-with-timeout";
 import { SessionClock } from "./SessionClock";
+import type { DateInfo, Session, SessionMetadata } from "./types";
+import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 
 const HEADER_TEXT_BUTTON =
   "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
@@ -47,6 +47,8 @@ export function HeaderControls({
   setShowHistory,
   historyVersion,
   onHistoryChanged,
+  unsyncedSessionIds,
+  onRetryNotionJob,
   onStartNewSession,
 }: {
   notionReady: boolean;
@@ -59,6 +61,8 @@ export function HeaderControls({
   setShowHistory: (show: boolean) => void;
   historyVersion: number;
   onHistoryChanged?: () => void;
+  unsyncedSessionIds: string[];
+  onRetryNotionJob: (sessionId: string) => void;
   onStartNewSession: () => void;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -221,8 +225,21 @@ export function HeaderControls({
           <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
               <SheetTrigger asChild>
-                <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                <Button
+                  variant="ghost"
+                  className={HEADER_TEXT_BUTTON}
+                  aria-label={
+                    unsyncedSessionIds.length > 0
+                      ? `기록, Notion 미동기화 ${unsyncedSessionIds.length}건`
+                      : "기록"
+                  }
+                >
                   기록
+                  {unsyncedSessionIds.length > 0 && (
+                    <span className="min-w-5 rounded-full bg-destructive px-1.5 text-center text-xs font-bold leading-5 tracking-normal text-white">
+                      {unsyncedSessionIds.length}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
               <SheetContent
@@ -250,6 +267,8 @@ export function HeaderControls({
                     selectedDate={null}
                     notionReady={notionReady}
                     onHistoryChanged={onHistoryChanged}
+                    unsyncedSessionIds={unsyncedSessionIds}
+                    onRetryNotionJob={onRetryNotionJob}
                   />
                 </div>
               </SheetContent>

@@ -51,6 +51,7 @@ docs/
 .claude/
 skill.md
 Claude outputs/
+.playwright-mcp/
 
 notion-template-build-guide.html
 public/ui_reference.png

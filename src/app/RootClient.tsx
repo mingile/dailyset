@@ -11,6 +11,18 @@ import {
   NOTION_STATUS_TIMEOUT_MS,
 } from "@/lib/fetch-with-timeout";
 import {
+  addJob,
+  flushNotionOutbox,
+  readLastKnownDbConnected,
+  readOutbox,
+  reconcileNotionOutbox,
+  retryFailed,
+  selectFailedJobs,
+  selectPendingJobs,
+  writeLastKnownDbConnected,
+  writeOutbox,
+} from "@/lib/notion-outbox";
+import {
   computeHistoryDirty,
   createHistoryPayload,
   createLocalExercisesPayload,
@@ -43,6 +55,7 @@ export function RootClient() {
   const [hydrated, setHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [historyVersion, setHistoryVersion] = useState<number>(0);
+  const [unsyncedSessionIds, setUnsyncedSessionIds] = useState<string[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
   const [entryMode, setEntryMode] = useState<"loading" | "session" | "library">(
     "loading",
@@ -57,6 +70,13 @@ export function RootClient() {
   const [dbConnected, setDbConnected] = useState<boolean>(false);
 
   const savingRef = useRef<boolean>(false);
+  // 상태 조회가 실패하면 "연결 안 됨"이 아니라 "확인 못 함"이다.
+  const notionStatusUnknownRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (notionStatusLoading || notionStatusUnknownRef.current) return;
+    writeLastKnownDbConnected(dbConnected);
+  }, [notionStatusLoading, dbConnected]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -400,6 +420,7 @@ export function RootClient() {
     } finally {
       const hasDraft = !!localStorage.getItem("workout.currentSession.v1");
       setEntryMode(hasDraft ? "session" : "library");
+      refreshUnsyncedSessionIds();
       setHydrated(true);
     }
   }, []);
@@ -454,6 +475,17 @@ export function RootClient() {
 
   function onSavedHistory() {
     setHistoryVersion((v) => v + 1);
+    refreshUnsyncedSessionIds();
+  }
+
+  /** outbox의 failed 작업을 화면 state에 반영한다. */
+  function refreshUnsyncedSessionIds() {
+    const ids = selectFailedJobs(readOutbox()).map((job) => job.sessionId);
+    setUnsyncedSessionIds((prev) =>
+      prev.length === ids.length && prev.every((id, i) => id === ids[i])
+        ? prev
+        : ids,
+    );
   }
 
   function startNewSession() {
@@ -478,20 +510,101 @@ export function RootClient() {
     });
   }
 
-  async function enqueueNotionSessionSync(savedAt: string): Promise<boolean> {
-    if (!dbConnected) {
+  function canSyncNotion(): boolean {
+    if (dbConnected) return true;
+    return (
+      notionStatusUnknownRef.current && readLastKnownDbConnected() === true
+    );
+  }
+
+  useEffect(() => {
+    if (!hydrated || notionStatusLoading) return;
+
+    async function flushPendingNotionJobs() {
+      // 서버 처리 결과 확인은 노션 연결 상태와 무관하게 queued 작업이 있으면 한다.
+      await reconcileNotionOutbox();
+      refreshUnsyncedSessionIds();
+
+      if (!canSyncNotion()) return;
+      if (selectPendingJobs(readOutbox()).length === 0) return;
+
+      const results = await flushNotionOutbox();
+      refreshUnsyncedSessionIds();
+      const queued = results.filter((r) => r.outcome === "queued").length;
+      if (queued > 0) {
+        toast.success(`Notion 동기화 요청 ${queued}건 완료`, {
+          duration: 2000,
+        });
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void flushPendingNotionJobs();
+      }
+    }
+
+    void flushPendingNotionJobs();
+    window.addEventListener("online", flushPendingNotionJobs);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("online", flushPendingNotionJobs);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // canSyncNotion은 dbConnected를 읽으므로 dbConnected 변경 시 다시 등록한다.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 위 이유
+  }, [hydrated, notionStatusLoading, dbConnected]);
+
+  /** 기록 화면에서 "다시 보내기"를 누른 failed 작업을 pending으로 되돌리고 바로 전송한다. */
+  async function handleRetryNotionJob(sessionId: string) {
+    writeOutbox(retryFailed(readOutbox(), sessionId, new Date().toISOString()));
+    refreshUnsyncedSessionIds();
+
+    if (!canSyncNotion()) {
+      toast.info("Notion 미연결", {
+        description: "연결되면 다시 보냅니다.",
+        duration: 2000,
+      });
+      return;
+    }
+
+    const results = await flushNotionOutbox();
+    refreshUnsyncedSessionIds();
+    const result = results.find((r) => r.sessionId === sessionId);
+
+    if (!result) {
+      toast.info("오프라인", {
+        description: "연결되면 Notion에 자동으로 저장됩니다.",
+        duration: 3000,
+      });
+    } else if (result.outcome === "queued") {
+      toast.success("Notion 동기화 요청 완료", {
+        description: "백그라운드에서 저장됩니다.",
+        duration: 2000,
+      });
+    } else {
+      toast.warning("Notion 동기화 요청 실패", {
+        description: result.error,
+        duration: 3000,
+      });
+    }
+  }
+
+  /** 완료한 세션을 outbox에 기록하고 바로 enqueue를 시도한다. 실패해도 outbox에 남는다. */
+  async function queueNotionSessionSync(savedAt: string): Promise<void> {
+    if (!canSyncNotion()) {
       toast.info("Notion 미연결", {
         description: "로컬에만 저장되었습니다.",
         duration: 2000,
       });
-      return false;
+      return;
     }
 
     if (!sessionMetadata) {
       toast.warning("세션 정보가 없어 Notion 동기화를 건너뜁니다.", {
         duration: 2000,
       });
-      return true;
+      return;
     }
 
     const notionExercises = createNotionExercisesPayload(exercises);
@@ -500,7 +613,7 @@ export function RootClient() {
       toast.info("모든 세트가 이미 동기화됨", {
         duration: 2000,
       });
-      return true;
+      return;
     }
 
     const hasInvalidExercise = notionExercises.some((ex) => !ex.exercisePageId);
@@ -509,45 +622,56 @@ export function RootClient() {
         description: "로컬은 저장됨, Notion 동기화는 건너뜀",
         duration: 3000,
       });
-      return true;
+      return;
     }
 
-    try {
-      const enqueueResponse = await fetch(withBasePath("/api/sync/enqueue"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sessionId: sessionMetadata.sessionId,
+    const sessionId = sessionMetadata.sessionId;
+    const saved = writeOutbox(
+      addJob(
+        readOutbox(),
+        {
+          sessionId,
           sessionName: sessionMetadata.sessionName,
           startedAt: sessionMetadata.startedAt,
           savedAt,
           exercises: notionExercises,
-        }),
+        },
+        new Date().toISOString(),
+      ),
+    );
+
+    if (!saved) {
+      toast.warning("Notion 동기화 대기열 저장 실패", {
+        description: "로컬은 저장됨, Notion 동기화는 건너뜀",
+        duration: 3000,
       });
+      return;
+    }
 
-      if (!enqueueResponse.ok) {
-        const errorData = await enqueueResponse.json();
-        toast.warning("Notion 동기화 요청 실패", {
-          description: "로컬은 저장됨: " + errorData.error,
-          duration: 3000,
-        });
-        return false;
-      }
+    const results = await flushNotionOutbox();
+    refreshUnsyncedSessionIds();
+    const result = results.find((r) => r.sessionId === sessionId);
 
+    if (!result) {
+      toast.info("오프라인", {
+        description: "연결되면 Notion에 자동으로 저장됩니다.",
+        duration: 3000,
+      });
+    } else if (result.outcome === "queued") {
       toast.success("Notion 동기화 요청 완료", {
         description: "백그라운드에서 저장됩니다.",
         duration: 2000,
       });
-      return true;
-    } catch (error) {
-      console.error("Sync enqueue 중 오류:", error);
+    } else if (result.outcome === "retry") {
       toast.warning("Notion 동기화 요청 실패", {
-        description: "로컬은 저장됨, 네트워크 확인 필요",
+        description: "로컬은 저장됨, 연결되면 다시 보냅니다.",
         duration: 3000,
       });
-      return false;
+    } else {
+      toast.warning("Notion 동기화 요청 실패", {
+        description: "로컬은 저장됨: " + result.error,
+        duration: 3000,
+      });
     }
   }
 
@@ -631,9 +755,7 @@ export function RootClient() {
         return;
       }
 
-      if (dbConnected) {
-        await enqueueNotionSessionSync(result.savedAt);
-      }
+      await queueNotionSessionSync(result.savedAt);
 
       startNewSession();
       toast.success("운동을 완료했습니다", {
@@ -675,12 +797,17 @@ export function RootClient() {
         NOTION_STATUS_TIMEOUT_MS,
       );
 
+      if (!res.ok) {
+        throw new Error(`Notion status HTTP ${res.status}`);
+      }
       const data = await res.json();
 
+      notionStatusUnknownRef.current = false;
       setNotionConnected(!!data.notionConnected);
       setDbConnected(!!data.dbConnected);
     } catch (err) {
       console.error("Notion 상태 조회 중 오류", err);
+      notionStatusUnknownRef.current = true;
       setNotionConnected(false);
       setDbConnected(false);
     } finally {
@@ -730,6 +857,8 @@ export function RootClient() {
           setShowHistory={setShowHistory}
           historyVersion={historyVersion}
           onHistoryChanged={onSavedHistory}
+          unsyncedSessionIds={unsyncedSessionIds}
+          onRetryNotionJob={handleRetryNotionJob}
           onStartNewSession={handleStartNewSession}
         />
         {!showHistory && (
@@ -752,6 +881,8 @@ export function RootClient() {
               selectedDate={selectedDate}
               notionReady={dbConnected}
               onHistoryChanged={onSavedHistory}
+              unsyncedSessionIds={unsyncedSessionIds}
+              onRetryNotionJob={handleRetryNotionJob}
             />
           </div>
         )}
