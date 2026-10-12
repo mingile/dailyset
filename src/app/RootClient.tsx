@@ -7,6 +7,10 @@ import { reconcileStoredExerciseTimers } from "@/lib/timer";
 import { kgToLb, lbToKg } from "@/lib/weightUnit";
 import { withBasePath } from "@/lib/base-path";
 import {
+  fetchWithTimeout,
+  NOTION_STATUS_TIMEOUT_MS,
+} from "@/lib/fetch-with-timeout";
+import {
   addJob,
   flushNotionOutbox,
   readLastKnownDbConnected,
@@ -783,11 +787,15 @@ export function RootClient() {
     try {
       setNotionStatusLoading(true);
 
-      const res = await fetch(withBasePath("/api/notion/status"), {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
+      const res = await fetchWithTimeout(
+        withBasePath("/api/notion/status"),
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        },
+        NOTION_STATUS_TIMEOUT_MS,
+      );
 
       if (!res.ok) {
         throw new Error(`Notion status HTTP ${res.status}`);

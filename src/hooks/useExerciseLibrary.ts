@@ -10,6 +10,10 @@ import {
   transformNotionRowToLibraryExercise,
 } from "@/lib/library";
 import { withBasePath } from "@/lib/base-path";
+import {
+  fetchWithTimeout,
+  NOTION_STATUS_TIMEOUT_MS,
+} from "@/lib/fetch-with-timeout";
 import builtinExercises from "@/data/exercises.json";
 
 function transformBuiltinExerciseToLibraryExercise(builtin: {
@@ -56,11 +60,15 @@ export function useExerciseLibrary() {
     try {
       setLibraryState({ status: "loading" });
 
-      const statusRes = await fetch(withBasePath("/api/notion/status"), {
-        method: "GET",
-        credentials: "include",
-        cache: "no-store",
-      });
+      const statusRes = await fetchWithTimeout(
+        withBasePath("/api/notion/status"),
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        },
+        NOTION_STATUS_TIMEOUT_MS,
+      );
 
       let notionConnected = false;
       let dbConnected = false;

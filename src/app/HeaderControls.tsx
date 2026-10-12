@@ -14,6 +14,10 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { withBasePath } from "@/lib/base-path";
+import {
+  fetchWithTimeout,
+  NOTION_STATUS_TIMEOUT_MS,
+} from "@/lib/fetch-with-timeout";
 import { SessionClock } from "./SessionClock";
 import type { DateInfo, Session, SessionMetadata } from "./types";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
@@ -465,8 +469,16 @@ export function HeaderControls({
   );
 
   async function checkNotionStatus() {
-    const response = await fetch(withBasePath("/api/notion/status"));
-    const data = await response.json();
-    setNotionReady(data.notionConnected && data.dbConnected);
+    try {
+      const response = await fetchWithTimeout(
+        withBasePath("/api/notion/status"),
+        undefined,
+        NOTION_STATUS_TIMEOUT_MS,
+      );
+      const data = await response.json();
+      setNotionReady(data.notionConnected && data.dbConnected);
+    } catch (err) {
+      console.error("Notion 상태 조회 중 오류", err);
+    }
   }
 }
