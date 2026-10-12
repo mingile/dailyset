@@ -506,7 +506,7 @@ export function WorkoutSessionClient({
                       type="text"
                       aria-label="현재 세트 메모"
                       disabled={!currentSet}
-                      className="mt-3 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-3 text-sm outline-none focus:border-(--session-accent)"
+                      className="mt-3 w-full rounded-none border-0 border-b-2 border-transparent bg-transparent py-3 text-sm outline-none focus:border-(--session-focus)"
                       value={currentSet?.memo ?? ""}
                       onChange={(e) =>
                         changeMemo(i, currentSetIdx, e.target.value)
@@ -709,7 +709,7 @@ function InlineNumberField({
         type="text"
         inputMode={inputMode}
         aria-label={ariaLabel}
-        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-accent) bg-transparent p-0 py-0! outline-none`}
+        className={`${className} w-full min-w-0 rounded-none border-0 border-b-2 border-(--session-focus) bg-transparent p-0 py-0! outline-none`}
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
         onFocus={(e) => e.target.select()}
@@ -891,7 +891,7 @@ function Row({
             }
           >
             <span
-              className={`rounded-full border px-2 py-1 text-xs ${setType === "warmup" ? "border-foreground font-semibold" : "border-border"}`}
+              className={`rounded-full border px-2 py-1 text-xs ${setType === "main" ? "border-foreground font-semibold" : "border-border"}`}
             >
               {setType === "warmup" ? "웜업" : "본세트"}
             </span>
@@ -922,7 +922,7 @@ function Row({
             {done ? (
               <Check className="size-6" />
             ) : (
-              <span className="size-6 rounded-full border-2 border-muted-foreground/60" />
+              <span className="size-6 rounded-full border-2 border-muted-foreground/80 dark:border-muted-foreground/60" />
             )}
           </button>
         </div>
@@ -1130,7 +1130,7 @@ function AddExerciseBottomSheet({
             placeholder="운동 이름 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none placeholder:text-muted-foreground focus:border-b-2 focus:border-(--session-accent)"
+            className="h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none placeholder:text-muted-foreground focus:border-b-2 focus:border-(--session-focus)"
           />
         </div>
 
