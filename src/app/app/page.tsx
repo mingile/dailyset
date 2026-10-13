@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QueryProvider } from "@/components/query-provider";
 import { RootClient } from "../RootClient";
 
 export const metadata: Metadata = {
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function AppPage() {
-  return <RootClient />;
+  return (
+    <QueryProvider>
+      <RootClient />
+    </QueryProvider>
+  );
 }
