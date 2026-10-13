@@ -1,7 +1,7 @@
 "use client";
 
 import { TrashIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { restoreHistoryFromNotion } from "@/lib/notion/restoreLocalHistory";
@@ -28,6 +28,167 @@ function formatDuration(seconds: number): string {
   return `${minutes}분`;
 }
 
+const SWIPE_MAX_OFFSET = -100;
+const SWIPE_DELETE_THRESHOLD = -50;
+// 이 거리 안에서는 가로/세로 어느 쪽 제스처인지 정하지 않는다.
+const SWIPE_AXIS_LOCK_DISTANCE = 8;
+const COLLAPSE_DURATION_MS = 200;
+// transitionend가 오지 않아도(백그라운드 탭 등) 삭제가 끝나도록 둔 여유 시간
+const COLLAPSE_FALLBACK_MS = COLLAPSE_DURATION_MS + 100;
+
+type SwipeAxis = "undecided" | "horizontal" | "vertical";
+// idle → collapsing(접히는 중, 아직 데이터는 그대로) → done(onDelete 호출됨)
+type DeleteState = "idle" | "collapsing" | "done";
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// 세트 한 줄. 드래그 중에는 state 없이 ref로 transform만 직접 바꿔서 리렌더를 일으키지 않는다.
+// 터치/마우스/펜을 Pointer Events 하나로 받는다. 세로 스크롤은 touch-action이 브라우저에 맡기고,
+// 브라우저가 스크롤을 가져가면 pointercancel이 와서 row를 원위치로 돌린다.
+// 삭제가 확정되면 row를 접은 뒤에 onDelete를 호출한다(아래 row들이 한 번에 튀지 않게).
+function SwipeableSetRow({
+  onDelete,
+  children,
+}: {
+  onDelete: () => void;
+  children: ReactNode;
+}) {
+  const rowRef = useRef<HTMLLIElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const onDeleteRef = useRef(onDelete);
+  const deleteStateRef = useRef<DeleteState>("idle");
+  const collapseTimerRef = useRef<number | null>(null);
+  const startRef = useRef<{ x: number; y: number; pointerId: number } | null>(
+    null,
+  );
+  const axisRef = useRef<SwipeAxis>("undecided");
+  const offsetRef = useRef(0);
+
+  useEffect(() => {
+    onDeleteRef.current = onDelete;
+  });
+
+  // 접히는 도중 기록 화면이 닫혀 unmount되어도 이미 확정한 삭제는 유실되지 않게 바로 실행한다.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: commitDelete는 ref만 읽는다
+  useEffect(() => {
+    return () => commitDelete();
+  }, []);
+
+  // 접힘이 끝났을 때(transitionend 또는 fallback 타이머, unmount) 한 번만 실제로 지운다.
+  function commitDelete() {
+    if (deleteStateRef.current !== "collapsing") return;
+    deleteStateRef.current = "done";
+    if (collapseTimerRef.current !== null) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+    onDeleteRef.current();
+  }
+
+  function collapseAndDelete() {
+    deleteStateRef.current = "collapsing";
+    const row = rowRef.current;
+    if (!row || prefersReducedMotion()) {
+      commitDelete();
+      return;
+    }
+    // height: auto는 transition이 안 되므로 현재 높이를 px로 고정한 뒤 0으로 줄인다.
+    row.style.height = `${row.getBoundingClientRect().height}px`;
+    row.getBoundingClientRect(); // 고정한 높이를 먼저 반영시켜야 0으로 가는 transition이 걸린다.
+    row.style.transition = `height ${COLLAPSE_DURATION_MS}ms ease-out`;
+    row.style.height = "0px";
+    collapseTimerRef.current = window.setTimeout(
+      commitDelete,
+      COLLAPSE_FALLBACK_MS,
+    );
+  }
+
+  function moveTo(offset: number, animate: boolean) {
+    const content = contentRef.current;
+    if (!content) return;
+    offsetRef.current = offset;
+    content.style.transition = animate ? "transform 150ms ease-out" : "none";
+    content.style.transform = `translateX(${offset}px)`;
+  }
+
+  function startSwipe(e: React.PointerEvent) {
+    // 접히는 중인 row는 더 이상 건드릴 수 없다.
+    if (deleteStateRef.current !== "idle") return;
+    // 마우스 오른쪽/가운데 버튼은 스와이프가 아니다.
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // 이전 제스처의 up/cancel을 놓쳤더라도 새 pointerdown이 항상 처음부터 다시 시작한다.
+    startRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+    axisRef.current = "undecided";
+    moveTo(0, false);
+  }
+
+  // 왼쪽(-100px)까지만, 오른쪽으로 되돌리면 row도 같이 돌아온다.
+  function moveSwipe(e: React.PointerEvent) {
+    const start = startRef.current;
+    if (!start || e.pointerId !== start.pointerId) return;
+
+    const diffX = e.clientX - start.x;
+    const diffY = e.clientY - start.y;
+
+    if (axisRef.current === "undecided") {
+      if (Math.max(Math.abs(diffX), Math.abs(diffY)) < SWIPE_AXIS_LOCK_DISTANCE)
+        return;
+      axisRef.current =
+        Math.abs(diffX) > Math.abs(diffY) ? "horizontal" : "vertical";
+    }
+    if (axisRef.current !== "horizontal") return;
+
+    moveTo(Math.min(0, Math.max(diffX, SWIPE_MAX_OFFSET)), false);
+  }
+
+  function endSwipe(e: React.PointerEvent) {
+    const start = startRef.current;
+    if (!start || e.pointerId !== start.pointerId) return;
+    startRef.current = null;
+    // 삭제되는 row는 밀린 위치에 그대로 둔 채 접는다. 되돌리면 사라지기 전에 깜빡인다.
+    if (offsetRef.current < SWIPE_DELETE_THRESHOLD) {
+      collapseAndDelete();
+      return;
+    }
+    moveTo(0, true);
+  }
+
+  // 브라우저가 제스처를 가져가거나(세로 스크롤) 포인터가 row를 벗어나면 삭제 없이 원위치로 돌린다.
+  function cancelSwipe() {
+    if (!startRef.current) return;
+    startRef.current = null;
+    moveTo(0, true);
+  }
+
+  return (
+    <li
+      ref={rowRef}
+      className="relative cursor-pointer touch-pan-y overflow-hidden"
+      onTransitionEnd={(e) => {
+        // content의 복귀 transition이 bubble 되어 올라오는 것은 무시하고 row 자신의 접힘만 본다.
+        if (e.target === e.currentTarget) commitDelete();
+      }}
+      onPointerDown={startSwipe}
+      onPointerMove={moveSwipe}
+      onPointerUp={endSwipe}
+      onPointerCancel={cancelSwipe}
+      onPointerLeave={cancelSwipe}
+    >
+      <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-4">
+        <TrashIcon className="size-4 text-white" />
+      </div>
+      <div
+        ref={contentRef}
+        className="grid min-h-11 grid-cols-[2.5rem_1fr_1fr] items-center gap-1 border-b border-border bg-background px-1 text-base tabular-nums"
+      >
+        {children}
+      </div>
+    </li>
+  );
+}
+
 export function WorkoutHistoryClient({
   showHistory,
   historyVersion,
@@ -46,8 +207,6 @@ export function WorkoutHistoryClient({
   onRetryNotionJob?: (sessionId: string) => void;
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [swipingSet, setSwipingSet] = useState<string | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [restoring, setRestoring] = useState(false);
 
   // 사용자가 history를 보고 싶어하면(showHistory==true) 실행되는 이펙터, 로컬스토리지에 저장된 데이터를 가져와서 (배열)
@@ -170,76 +329,6 @@ export function WorkoutHistoryClient({
 
     localStorage.setItem(sessionKey, JSON.stringify(updatedSessions));
     onHistoryChanged?.();
-  }
-
-  // 터치 시작 이벤트
-  function handleTouchStart(e: React.TouchEvent, setKey: string) {
-    const touch = e.touches[0];
-    setSwipingSet(setKey);
-    setSwipeOffset(0);
-    (e.currentTarget as HTMLElement).dataset.startX = String(touch.clientX);
-  }
-
-  // 터치 이벤트 이동 중 좌표 계산
-  function handleTouchMove(e: React.TouchEvent, setKey: string) {
-    if (swipingSet !== setKey) return;
-
-    const touch = e.touches[0];
-    const startX = Number((e.currentTarget as HTMLElement).dataset.startX);
-    const currentX = touch.clientX;
-    const diff = currentX - startX;
-
-    if (diff < 0) {
-      setSwipeOffset(Math.max(diff, -100));
-    }
-  }
-
-  // 터치 끝날 때 이벤트
-  function handleTouchEnd(
-    sessionId: string,
-    exerciseId: string,
-    setNo: number,
-  ) {
-    if (swipeOffset < -50) {
-      deleteSet(sessionId, exerciseId, setNo);
-    }
-    setSwipingSet(null);
-    setSwipeOffset(0);
-  }
-
-  // 스와이핑에 대한 마우스 클릭 이벤트
-  function handleMouseDown(e: React.MouseEvent, setKey: string) {
-    setSwipingSet(setKey);
-    setSwipeOffset(0);
-    (e.currentTarget as HTMLElement).dataset.startX = String(e.clientX);
-  }
-
-  // 스와이핑 마우스 이동 이벤트
-  function handleMouseMove(e: React.MouseEvent, setKey: string) {
-    if (swipingSet !== setKey) return;
-
-    const startX = Number((e.currentTarget as HTMLElement).dataset.startX);
-    const currentX = e.clientX;
-    const diff = currentX - startX;
-
-    if (diff < 0) {
-      setSwipeOffset(Math.max(diff, -100));
-    }
-  }
-
-  // 스와이핑 마우스 끝날 때 이벤트
-  function handleMouseUp(sessionId: string, exerciseId: string, setNo: number) {
-    if (swipeOffset < -50) {
-      deleteSet(sessionId, exerciseId, setNo);
-    }
-    setSwipingSet(null);
-    setSwipeOffset(0);
-  }
-
-  // 마우스 커서가 html 요소 바깥으로 이동할 때
-  function handleMouseLeave() {
-    setSwipingSet(null);
-    setSwipeOffset(0);
   }
 
   // 노션으로부터 데이터 복원
@@ -390,71 +479,30 @@ export function WorkoutHistoryClient({
                                 </p>
 
                                 <ul className="mt-1 border-t border-border">
-                                  {ex.sets.map((set) => {
-                                    const setKey = `${session.id}-${ex.id}-${set.setNo}`;
-                                    const isActive = swipingSet === setKey;
-                                    const offset = isActive ? swipeOffset : 0;
-
-                                    return (
-                                      <li
-                                        key={set.setNo}
-                                        className="relative cursor-pointer overflow-hidden"
-                                        onTouchStart={(e) =>
-                                          handleTouchStart(e, setKey)
-                                        }
-                                        onTouchMove={(e) =>
-                                          handleTouchMove(e, setKey)
-                                        }
-                                        onTouchEnd={() =>
-                                          handleTouchEnd(
-                                            session.id,
-                                            ex.id,
-                                            set.setNo,
-                                          )
-                                        }
-                                        onMouseDown={(e) =>
-                                          handleMouseDown(e, setKey)
-                                        }
-                                        onMouseMove={(e) =>
-                                          handleMouseMove(e, setKey)
-                                        }
-                                        onMouseUp={() =>
-                                          handleMouseUp(
-                                            session.id,
-                                            ex.id,
-                                            set.setNo,
-                                          )
-                                        }
-                                        onMouseLeave={handleMouseLeave}
-                                      >
-                                        <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-4">
-                                          <TrashIcon className="size-4 text-white" />
-                                        </div>
-                                        <div
-                                          className="grid min-h-11 grid-cols-[2.5rem_1fr_1fr] items-center gap-1 border-b border-border bg-background px-1 text-base tabular-nums transition-transform"
-                                          style={{
-                                            transform: `translateX(${offset}px)`,
-                                          }}
-                                        >
-                                          <span className="text-sm text-muted-foreground">
-                                            {String(set.setNo).padStart(2, "0")}
-                                          </span>
-                                          <span>
-                                            {set.weight}
-                                            <span className="ml-1 text-xs text-muted-foreground">
-                                              kg
-                                            </span>
-                                          </span>
-                                          <span>
-                                            {set.reps}
-                                            <span className="ml-1 text-xs text-muted-foreground">
-                                              회
-                                            </span>
-                                          </span>
-                                        </div>
-                                      </li>
-                                    );
-                                  })}
+                                  {ex.sets.map((set) => (
+                                    <SwipeableSetRow
+                                      key={set.setNo}
+                                      onDelete={() =>
+                                        deleteSet(session.id, ex.id, set.setNo)
+                                      }
+                                    >
+                                      <span className="text-sm text-muted-foreground">
+                                        {String(set.setNo).padStart(2, "0")}
+                                      </span>
+                                      <span>
+                                        {set.weight}
+                                        <span className="ml-1 text-xs text-muted-foreground">
+                                          kg
+                                        </span>
+                                      </span>
+                                      <span>
+                                        {set.reps}
+                                        <span className="ml-1 text-xs text-muted-foreground">
+                                          회
+                                        </span>
+                                      </span>
+                                    </SwipeableSetRow>
+                                  ))}
                                 </ul>
                               </div>
                             ))}
