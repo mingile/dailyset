@@ -127,6 +127,7 @@ export function LandingSessionDemo() {
           onExerciseTimersChange={setExerciseTimers}
           onCompleteWorkout={() => {}}
           saving={false}
+          notionConnection="disconnected"
           hideSessionActions
         />
       </div>

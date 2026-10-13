@@ -6,8 +6,9 @@ import {
 } from "../helpers";
 
 // /api/notion/status 요청이 응답 없이 매달려도 앱이 화면을 보여주는지 검증한다.
-// 제한 시간(3초)이 RootClient와 라이브러리 훅에서 순차로 적용되어 약 6초가 걸린다.
-const HUNG_STATUS_VISIBLE_TIMEOUT_MS = 10_000;
+// 제한 시간(3초)은 RootClient의 status 조회에만 적용되어 약 3초 뒤 라이브러리를 보여준다.
+// 라이브러리 훅이 status를 다시 조회하면 제한 시간이 한 번 더 적용돼 약 6초가 되므로, 그 회귀를 잡도록 6초 미만으로 둔다.
+const HUNG_STATUS_VISIBLE_TIMEOUT_MS = 5_000;
 
 test.describe("Landing", () => {
   test("loads the landing page shell", async ({ page }) => {

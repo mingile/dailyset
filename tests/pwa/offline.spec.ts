@@ -5,8 +5,8 @@ import {
   withBasePath,
 } from "../helpers";
 
-// 오프라인에서는 /api/notion/status 요청이 실패하고, 앱은 제한 시간(3초)이
-// RootClient와 라이브러리 훅에서 순차로 적용된 뒤(약 6초) 라이브러리를 보여준다.
+// 오프라인에서는 /api/notion/status 요청이 즉시 거부되므로 제한 시간(3초)을 기다리지 않고 바로 라이브러리를 보여준다.
+// 타임아웃은 Service Worker·로딩 지연에 대한 여유이며, 응답이 없는 경우(제한 시간 대기)는 app-loading.spec이 검증한다.
 const OFFLINE_SHELL_TIMEOUT_MS = 10_000;
 
 async function expectLibraryShell(page: Page, timeout?: number) {

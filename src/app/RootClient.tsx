@@ -33,6 +33,7 @@ import { LibraryClient } from "./LibraryClient";
 import {
   type Exercises,
   type ExerciseTimers,
+  type NotionConnection,
   type Part,
   SavedExercise,
   type Session,
@@ -68,6 +69,9 @@ export function RootClient() {
   const [notionStatusLoading, setNotionStatusLoading] = useState<boolean>(true);
   const [notionConnected, setNotionConnected] = useState<boolean>(false);
   const [dbConnected, setDbConnected] = useState<boolean>(false);
+  // 운동 라이브러리에 내려주는 연결 상태. dbConnected와 달리 "확인 못 함"과 "연결 안 됨"을 구분한다.
+  const [notionConnection, setNotionConnection] =
+    useState<NotionConnection>("unknown");
 
   const savingRef = useRef<boolean>(false);
   // 상태 조회가 실패하면 "연결 안 됨"이 아니라 "확인 못 함"이다.
@@ -784,6 +788,8 @@ export function RootClient() {
   }
 
   async function refreshNotionStatus() {
+    // 조회에 실패하면 "연결 안 됨"이 아니라 "확인 못 함"이다. 단 401은 쿠키가 없다는 확정 응답(연결한 적 없음)이다.
+    let nextConnection: NotionConnection = "unknown";
     try {
       setNotionStatusLoading(true);
 
@@ -798,11 +804,13 @@ export function RootClient() {
       );
 
       if (!res.ok) {
+        if (res.status === 401) nextConnection = "disconnected";
         throw new Error(`Notion status HTTP ${res.status}`);
       }
       const data = await res.json();
 
       notionStatusUnknownRef.current = false;
+      nextConnection = data.dbConnected ? "connected" : "disconnected";
       setNotionConnected(!!data.notionConnected);
       setDbConnected(!!data.dbConnected);
     } catch (err) {
@@ -811,8 +819,15 @@ export function RootClient() {
       setNotionConnected(false);
       setDbConnected(false);
     } finally {
+      setNotionConnection(nextConnection);
       setNotionStatusLoading(false);
     }
+  }
+
+  /** HeaderControls가 연결 해제 뒤 다시 확인한 결과를 반영한다 */
+  function handleNotionReadyChange(ready: boolean) {
+    setDbConnected(ready);
+    setNotionConnection(ready ? "connected" : "disconnected");
   }
 
   if (notionStatusLoading) {
@@ -834,6 +849,7 @@ export function RootClient() {
   if (entryMode === "library") {
     return (
       <LibraryClient
+        notionConnection={notionConnection}
         onConfirmSelection={(draft) => {
           hydrate(draft.exercises, false);
           setSessionMetadata(draft.session);
@@ -848,7 +864,7 @@ export function RootClient() {
       <div className="session-surface session-font flex flex-col h-100vh min-h-screen">
         <HeaderControls
           notionReady={dbConnected}
-          setNotionReady={setDbConnected}
+          setNotionReady={handleNotionReadyChange}
           sessionMetadata={sessionMetadata}
           changeSessionName={changeSessionName}
           selectedDate={selectedDate}
@@ -863,6 +879,7 @@ export function RootClient() {
         />
         {!showHistory && (
           <WorkoutSessionClient
+            notionConnection={notionConnection}
             exercises={exercises}
             displayWeightUnit={displayWeightUnit}
             actions={actions}

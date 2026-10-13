@@ -483,8 +483,13 @@ export function HeaderControls({
         undefined,
         NOTION_STATUS_TIMEOUT_MS,
       );
+      if (!response.ok) {
+        // 401은 연결 정보가 없다는 확정 응답이다. 그 외 오류 응답은 확인 못 한 것이므로 기존 값을 덮어쓰지 않는다.
+        if (response.status === 401) setNotionReady(false);
+        return;
+      }
       const data = await response.json();
-      setNotionReady(data.notionConnected && data.dbConnected);
+      setNotionReady(!!(data.notionConnected && data.dbConnected));
     } catch (err) {
       console.error("Notion 상태 조회 중 오류", err);
     }

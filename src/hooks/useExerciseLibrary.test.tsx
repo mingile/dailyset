@@ -1,13 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { NotionConnection } from "@/app/types";
 import { createQueryWrapper } from "@/test-utils/query";
 import {
   EXERCISE_LIBRARY_QUERY_KEY,
   useExerciseLibrary,
 } from "./useExerciseLibrary";
 
-// useExerciseLibrary가 연결하는 것(status → exercise-read → 내장 목록 fallback, 캐시, 취소)만 검증한다.
-// Notion 행 변환·카테고리 정렬은 lib/library의 책임이다.
+// useExerciseLibrary가 연결하는 것(연결 상태 → exercise-read → 내장 목록 fallback, 캐시, 취소)만 검증한다.
+// Notion 행 변환·카테고리 정렬은 lib/library의 책임이고, 연결 상태 조회는 RootClient의 책임이다.
 
 // ---- 경계 stub ----
 
@@ -34,10 +35,6 @@ const notionRow = (
   },
 });
 
-const connectedStatus: Handler = () =>
-  jsonResponse({ notionConnected: true, dbConnected: true });
-const disconnectedStatus: Handler = () =>
-  jsonResponse({ notionConnected: false, dbConnected: false });
 const twoRows: Handler = () =>
   jsonResponse({
     data: [
@@ -46,18 +43,16 @@ const twoRows: Handler = () =>
     ],
   });
 
-function stubFetch(
-  handlers: { status?: Handler; exerciseRead?: Handler } = {},
-) {
+const networkError: Handler = () => {
+  throw new TypeError("Failed to fetch");
+};
+
+/** exercise-read만 stub한다. status는 이 hook의 책임이 아니므로 호출되면 실패시킨다. */
+function stubFetch(exerciseRead: Handler = twoRows) {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes("/api/notion/status")) {
-        return (handlers.status ?? connectedStatus)(init);
-      }
-      if (url.includes("/api/notion/exercise-read")) {
-        return (handlers.exerciseRead ?? twoRows)(init);
-      }
+      if (url.includes("/api/notion/exercise-read")) return exerciseRead(init);
       throw new Error(`stub되지 않은 요청: ${url}`);
     },
   );
@@ -73,146 +68,108 @@ function countCalls(fetchMock: ReturnType<typeof stubFetch>, path: string) {
 const STATUS = "/api/notion/status";
 const READ = "/api/notion/exercise-read";
 
+/** 연결 상태는 hook의 인자다. 바꿀 때는 rerender({ connection })을 쓴다. */
+function renderLibrary(
+  wrapper: ReturnType<typeof createQueryWrapper>["Wrapper"],
+  connection: NotionConnection = "connected",
+) {
+  return renderHook(
+    ({ connection }: { connection: NotionConnection }) =>
+      useExerciseLibrary(connection),
+    { wrapper, initialProps: { connection } },
+  );
+}
+
+type Rendered = { current: ReturnType<typeof useExerciseLibrary> };
+
+function readState(result: Rendered) {
+  return result.current.libraryState;
+}
+
+function expectSuccess(state: ReturnType<typeof readState>) {
+  if (state.status !== "success") throw new Error("success가 아님");
+  return state;
+}
+
 beforeEach(() => {
   // fallback 경로의 console.error는 테스트 출력에서 제외한다
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe("useExerciseLibrary — 상태", () => {
+describe("useExerciseLibrary — 연결됨(connected)", () => {
   it("처음에는 loading이다", () => {
     stubFetch();
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
-    expect(result.current.libraryState).toEqual({ status: "loading" });
+    expect(readState(result)).toEqual({ status: "loading" });
   });
 
-  it("Notion이 연결되어 있으면 Notion 운동 목록을 success로 보여준다", async () => {
+  it("Notion 운동 목록을 success로 보여주고 status는 조회하지 않는다", async () => {
     const fetchMock = stubFetch();
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+    const state = expectSuccess(readState(result));
     expect(state.source).toBe("notion");
     expect(state.exercises.map((e) => e.name)).toEqual([
       "랫풀다운",
       "벤치프레스",
     ]);
-    expect(countCalls(fetchMock, STATUS)).toBe(1);
     expect(countCalls(fetchMock, READ)).toBe(1);
-  });
-
-  it("Notion이 연결되어 있지 않으면 exercise-read 없이 내장 목록과 안내를 보여준다", async () => {
-    const fetchMock = stubFetch({ status: disconnectedStatus });
-    const { Wrapper } = createQueryWrapper();
-
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
-    expect(state.source).toBe("builtin");
-    expect(state.message).toContain("노션 미연동");
-    expect(state.exercises.length).toBeGreaterThan(0);
-    expect(countCalls(fetchMock, READ)).toBe(0);
-  });
-
-  it("status가 오류 응답이면 미연동으로 보고 내장 목록을 보여준다", async () => {
-    stubFetch({ status: () => jsonResponse({ error: "Unauthorized" }, 401) });
-    const { Wrapper } = createQueryWrapper();
-
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
-    expect(state.source).toBe("builtin");
-    expect(state.message).toContain("노션 미연동");
+    expect(countCalls(fetchMock, STATUS)).toBe(0);
   });
 
   it("Notion 목록이 비어 있으면 empty다", async () => {
-    stubFetch({ exerciseRead: () => jsonResponse({ data: [] }) });
+    stubFetch(() => jsonResponse({ data: [] }));
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
-    await waitFor(() =>
-      expect(result.current.libraryState).toEqual({ status: "empty" }),
-    );
+    await waitFor(() => expect(readState(result)).toEqual({ status: "empty" }));
   });
 
   it("네트워크 오류(예외)는 내장 목록으로 fallback한다", async () => {
-    stubFetch({
-      status: () => {
-        throw new TypeError("Failed to fetch");
-      },
-    });
+    stubFetch(networkError);
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+    const state = expectSuccess(readState(result));
     expect(state.source).toBe("builtin");
     expect(state.message).toContain("네트워크 연결 없음");
+    expect(state.exercises.length).toBeGreaterThan(0);
   });
 
   it("exercise-read 오류 응답은 error로 보여준다 (내장 목록으로 대체하지 않는다)", async () => {
-    stubFetch({ exerciseRead: () => jsonResponse({ error: "boom" }, 500) });
+    stubFetch(() => jsonResponse({ error: "boom" }, 500));
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
     await waitFor(() =>
-      expect(result.current.libraryState).toEqual({
-        status: "error",
-        message: "boom",
-      }),
+      expect(readState(result)).toEqual({ status: "error", message: "boom" }),
     );
   });
 
   it("오류 응답에 메시지가 없으면 기본 문구를 쓴다", async () => {
-    stubFetch({ exerciseRead: () => jsonResponse({}, 500) });
+    stubFetch(() => jsonResponse({}, 500));
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
     await waitFor(() =>
-      expect(result.current.libraryState).toEqual({
+      expect(readState(result)).toEqual({
         status: "error",
         message: "Failed to fetch exercises",
       }),
@@ -220,35 +177,23 @@ describe("useExerciseLibrary — 상태", () => {
   });
 
   it("오류 응답 본문이 JSON이 아니면 네트워크 오류처럼 내장 목록으로 fallback한다", async () => {
-    stubFetch({
-      exerciseRead: () =>
-        new Response("<html>Bad Gateway</html>", { status: 502 }),
-    });
+    stubFetch(() => new Response("<html>Bad Gateway</html>", { status: 502 }));
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+    const state = expectSuccess(readState(result));
     expect(state.source).toBe("builtin");
     expect(state.message).toContain("네트워크 연결 없음");
   });
 
   it("refetch는 loading을 거쳐 새 결과를 보여준다 (error → success)", async () => {
     let exerciseRead: Handler = () => jsonResponse({ error: "boom" }, 500);
-    stubFetch({ exerciseRead: (init) => exerciseRead(init) });
+    stubFetch((init) => exerciseRead(init));
     const { Wrapper } = createQueryWrapper();
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("error"),
-    );
+    const { result } = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(result).status).toBe("error"));
 
     // 응답을 보류시켜 loading이 화면에 실제로 보이는 구간을 만든다
     let release: () => void = () => {};
@@ -264,12 +209,83 @@ describe("useExerciseLibrary — 상태", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.libraryState).toEqual({ status: "loading" }),
+      expect(readState(result)).toEqual({ status: "loading" }),
     );
     release();
-    await waitFor(() =>
-      expect(result.current.libraryState.status).toBe("success"),
-    );
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+  });
+});
+
+describe("useExerciseLibrary — 연결 상태에 따른 동작", () => {
+  it("disconnected이면 요청 없이 곧바로 내장 목록과 미연동 안내를 보여준다", () => {
+    const fetchMock = stubFetch();
+    const { Wrapper } = createQueryWrapper();
+
+    const { result } = renderLibrary(Wrapper, "disconnected");
+
+    const state = expectSuccess(readState(result));
+    expect(state.source).toBe("builtin");
+    expect(state.message).toContain("노션 미연동");
+    expect(state.exercises.length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("unknown이고 캐시가 없으면 요청 없이 내장 목록과 네트워크 안내를 보여준다", () => {
+    const fetchMock = stubFetch();
+    const { Wrapper } = createQueryWrapper();
+
+    const { result } = renderLibrary(Wrapper, "unknown");
+
+    const state = expectSuccess(readState(result));
+    expect(state.source).toBe("builtin");
+    expect(state.message).toContain("네트워크 연결 없음");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("unknown이어도 캐시된 Notion 목록이 있으면 그것을 보여준다 (확인 못 한 것이지 연결 안 됨이 아니다)", async () => {
+    const fetchMock = stubFetch();
+    const { Wrapper } = createQueryWrapper();
+    const { result, rerender } = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+
+    rerender({ connection: "unknown" });
+
+    const state = expectSuccess(readState(result));
+    expect(state.source).toBe("notion");
+    expect(state.exercises.map((e) => e.name)).toEqual([
+      "랫풀다운",
+      "벤치프레스",
+    ]);
+    expect(countCalls(fetchMock, READ)).toBe(1);
+  });
+
+  it("disconnected이면 캐시된 Notion 목록이 있어도 보여주지 않는다", async () => {
+    const fetchMock = stubFetch();
+    const { Wrapper } = createQueryWrapper();
+    const { result, rerender } = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(result).status).toBe("success"));
+
+    rerender({ connection: "disconnected" });
+
+    const state = expectSuccess(readState(result));
+    expect(state.source).toBe("builtin");
+    expect(state.message).toContain("노션 미연동");
+    expect(countCalls(fetchMock, READ)).toBe(1);
+  });
+
+  it("disconnected에서 connected로 바뀌면 그때 Notion 목록을 조회한다", async () => {
+    const fetchMock = stubFetch();
+    const { Wrapper } = createQueryWrapper();
+    const { result, rerender } = renderLibrary(Wrapper, "disconnected");
+    expect(countCalls(fetchMock, READ)).toBe(0);
+
+    rerender({ connection: "connected" });
+
+    await waitFor(() => {
+      const s = readState(result);
+      expect(s.status === "success" && s.source).toBe("notion");
+    });
+    expect(countCalls(fetchMock, READ)).toBe(1);
   });
 });
 
@@ -277,20 +293,15 @@ describe("useExerciseLibrary — 캐시", () => {
   it("Notion 목록은 hook을 다시 마운트해도(시트 재오픈) 재요청하지 않고 바로 보여준다", async () => {
     const fetchMock = stubFetch();
     const { Wrapper } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("success"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("success"));
     first.unmount();
 
-    const second = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const second = renderLibrary(Wrapper);
 
     // 첫 렌더부터 캐시된 목록이 보인다 (loading을 거치지 않는다)
-    expect(second.result.current.libraryState.status).toBe("success");
+    expect(readState(second.result).status).toBe("success");
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(countCalls(fetchMock, STATUS)).toBe(1);
     expect(countCalls(fetchMock, READ)).toBe(1);
   });
 
@@ -299,103 +310,85 @@ describe("useExerciseLibrary — 캐시", () => {
     const { Wrapper } = createQueryWrapper();
 
     const { result } = renderHook(
-      () => [useExerciseLibrary(), useExerciseLibrary()] as const,
+      () =>
+        [
+          useExerciseLibrary("connected"),
+          useExerciseLibrary("connected"),
+        ] as const,
       { wrapper: Wrapper },
     );
 
     await waitFor(() =>
       expect(result.current[1].libraryState.status).toBe("success"),
     );
-    expect(countCalls(fetchMock, STATUS)).toBe(1);
     expect(countCalls(fetchMock, READ)).toBe(1);
   });
 
   it("내장 목록 fallback은 캐시에 굳히지 않고 다시 마운트하면 재조회한다", async () => {
-    const fetchMock = stubFetch({ status: disconnectedStatus });
+    const fetchMock = stubFetch(networkError);
     const { Wrapper } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("success"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("success"));
     first.unmount();
 
-    renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-
-    await waitFor(() => expect(countCalls(fetchMock, STATUS)).toBe(2));
-  });
-
-  it("빈 목록(empty)도 캐시에 굳히지 않는다", async () => {
-    const fetchMock = stubFetch({
-      exerciseRead: () => jsonResponse({ data: [] }),
-    });
-    const { Wrapper } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("empty"),
-    );
-    first.unmount();
-
-    renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
+    renderLibrary(Wrapper);
 
     await waitFor(() => expect(countCalls(fetchMock, READ)).toBe(2));
   });
 
-  it("무효화(연결 해제)하면 캐시된 Notion 목록도 다시 마운트할 때 재조회한다", async () => {
+  it("빈 목록(empty)도 캐시에 굳히지 않는다", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ data: [] }));
+    const { Wrapper } = createQueryWrapper();
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("empty"));
+    first.unmount();
+
+    renderLibrary(Wrapper);
+
+    await waitFor(() => expect(countCalls(fetchMock, READ)).toBe(2));
+  });
+
+  it("무효화하면 캐시된 Notion 목록도 다시 마운트할 때 재조회한다", async () => {
     const fetchMock = stubFetch();
     const { Wrapper, queryClient } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("success"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("success"));
     first.unmount();
 
     await queryClient.invalidateQueries({
       queryKey: EXERCISE_LIBRARY_QUERY_KEY,
     });
-    renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
+    renderLibrary(Wrapper);
 
-    await waitFor(() => expect(countCalls(fetchMock, STATUS)).toBe(2));
-    expect(countCalls(fetchMock, READ)).toBe(2);
+    await waitFor(() => expect(countCalls(fetchMock, READ)).toBe(2));
   });
 
   it("오류(error)는 캐시에 굳히지 않고 다시 마운트하면 재조회한다", async () => {
-    const fetchMock = stubFetch({
-      exerciseRead: () => jsonResponse({ error: "boom" }, 500),
-    });
+    const fetchMock = stubFetch(() => jsonResponse({ error: "boom" }, 500));
     const { Wrapper } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("error"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("error"));
     first.unmount();
 
-    renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
+    renderLibrary(Wrapper);
 
     await waitFor(() => expect(countCalls(fetchMock, READ)).toBe(2));
   });
 });
 
 describe("useExerciseLibrary — 취소", () => {
-  function hangUntilAborted(init?: RequestInit): Promise<Response> {
-    return new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () =>
-        reject(new DOMException("aborted", "AbortError")),
-      );
-    });
-  }
-
   it("exercise-read 진행 중에 unmount하면 요청을 중단한다", async () => {
     let readSignal: AbortSignal | null | undefined;
-    stubFetch({
-      exerciseRead: (init) => {
-        readSignal = init?.signal;
-        return hangUntilAborted(init);
-      },
+    stubFetch((init) => {
+      readSignal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      });
     });
     const { Wrapper } = createQueryWrapper();
-    const { unmount } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { unmount } = renderLibrary(Wrapper);
     await waitFor(() => expect(readSignal).toBeDefined());
     expect(readSignal?.aborted).toBe(false);
 
@@ -403,42 +396,18 @@ describe("useExerciseLibrary — 취소", () => {
 
     await waitFor(() => expect(readSignal?.aborted).toBe(true));
   });
-
-  it("status 진행 중에 unmount하면 요청을 중단한다", async () => {
-    let statusSignal: AbortSignal | null | undefined;
-    stubFetch({
-      status: (init) => {
-        statusSignal = init?.signal;
-        return hangUntilAborted(init);
-      },
-    });
-    const { Wrapper } = createQueryWrapper();
-    const { unmount } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-    await waitFor(() => expect(statusSignal).toBeDefined());
-    expect(statusSignal?.aborted).toBe(false);
-
-    unmount();
-
-    await waitFor(() => expect(statusSignal?.aborted).toBe(true));
-  });
 });
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
 describe("useExerciseLibrary — Notion 목록 2시간 캐시", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   async function mountOnce(
     wrapper: ReturnType<typeof createQueryWrapper>["Wrapper"],
   ) {
-    const mounted = renderHook(() => useExerciseLibrary(), { wrapper });
+    const mounted = renderLibrary(wrapper);
     await waitFor(() =>
-      expect(mounted.result.current.libraryState.status).toBe("success"),
+      expect(readState(mounted.result).status).toBe("success"),
     );
     return mounted;
   }
@@ -451,16 +420,14 @@ describe("useExerciseLibrary — Notion 목록 2시간 캐시", () => {
     (await mountOnce(Wrapper)).unmount();
 
     vi.setSystemTime(Date.now() + TWO_HOURS_MS - MINUTE_MS);
-    const withinCache = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const withinCache = renderLibrary(Wrapper);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(countCalls(fetchMock, STATUS)).toBe(1);
+    expect(countCalls(fetchMock, READ)).toBe(1);
     withinCache.unmount();
 
     vi.setSystemTime(Date.now() + 2 * MINUTE_MS);
-    renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() => expect(countCalls(fetchMock, STATUS)).toBe(2));
+    renderLibrary(Wrapper);
+    await waitFor(() => expect(countCalls(fetchMock, READ)).toBe(2));
   });
 
   it("구독자가 없는 채로 기본 gcTime(5분)이 지나도 캐시가 남고, 2시간이 지나면 지워진다", async () => {
@@ -483,25 +450,13 @@ describe("useExerciseLibrary — Notion 목록 2시간 캐시", () => {
 });
 
 describe("useExerciseLibrary — 재조회 실패 시 이전 Notion 목록 유지", () => {
-  const networkError: Handler = () => {
-    throw new TypeError("Failed to fetch");
-  };
-
   /** Notion 목록을 캐시에 올리고 무효화(= 재조회 대상)한 뒤, 이후 응답을 바꿀 수 있는 handlers를 돌려준다 */
   async function setupCachedNotion() {
-    const handlers: { status: Handler; exerciseRead: Handler } = {
-      status: connectedStatus,
-      exerciseRead: twoRows,
-    };
-    const fetchMock = stubFetch({
-      status: (init) => handlers.status(init),
-      exerciseRead: (init) => handlers.exerciseRead(init),
-    });
+    const handlers: { exerciseRead: Handler } = { exerciseRead: twoRows };
+    const fetchMock = stubFetch((init) => handlers.exerciseRead(init));
     const { Wrapper, queryClient } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("success"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("success"));
     first.unmount();
     await queryClient.invalidateQueries({
       queryKey: EXERCISE_LIBRARY_QUERY_KEY,
@@ -509,19 +464,12 @@ describe("useExerciseLibrary — 재조회 실패 시 이전 Notion 목록 유�
     return { handlers, fetchMock, Wrapper, queryClient };
   }
 
-  const failures: [
-    string,
-    Partial<{ status: Handler; exerciseRead: Handler }>,
-  ][] = [
-    ["exercise-read 네트워크 예외", { exerciseRead: networkError }],
-    ["status 조회 예외(네트워크·timeout)", { status: networkError }],
-    [
-      "exercise-read 오류 응답",
-      { exerciseRead: () => jsonResponse({ error: "boom" }, 500) },
-    ],
+  const failures: [string, Handler][] = [
+    ["exercise-read 네트워크 예외", networkError],
+    ["exercise-read 오류 응답", () => jsonResponse({ error: "boom" }, 500)],
     [
       "exercise-read 비-JSON 오류 응답",
-      { exerciseRead: () => new Response("<html>502</html>", { status: 502 }) },
+      () => new Response("<html>502</html>", { status: 502 }),
     ],
   ];
 
@@ -530,19 +478,16 @@ describe("useExerciseLibrary — 재조회 실패 시 이전 Notion 목록 유�
     async (_name, failure) => {
       const { handlers, fetchMock, Wrapper, queryClient } =
         await setupCachedNotion();
-      Object.assign(handlers, failure);
+      handlers.exerciseRead = failure;
 
-      const second = renderHook(() => useExerciseLibrary(), {
-        wrapper: Wrapper,
-      });
+      const second = renderLibrary(Wrapper);
       await waitFor(() =>
         expect(
           queryClient.getQueryState(EXERCISE_LIBRARY_QUERY_KEY)?.status,
         ).toBe("error"),
       );
 
-      const state = second.result.current.libraryState;
-      if (state.status !== "success") throw new Error("success가 아님");
+      const state = expectSuccess(readState(second.result));
       expect(state.source).toBe("notion");
       expect(state.exercises.map((e) => e.name)).toEqual([
         "랫풀다운",
@@ -551,96 +496,44 @@ describe("useExerciseLibrary — 재조회 실패 시 이전 Notion 목록 유�
       second.unmount();
 
       // 실패한 결과를 신선한 것으로 취급하지 않는다: 다음 마운트에서 다시 조회하고, 복구되면 새 목록이 보인다
-      const statusCallsBefore = countCalls(fetchMock, STATUS);
-      handlers.status = connectedStatus;
+      const readCallsBefore = countCalls(fetchMock, READ);
       handlers.exerciseRead = () =>
-        jsonResponse({
-          data: [notionRow("p3", "squat", "스쿼트", "하체")],
-        });
-      const third = renderHook(() => useExerciseLibrary(), {
-        wrapper: Wrapper,
-      });
+        jsonResponse({ data: [notionRow("p3", "squat", "스쿼트", "하체")] });
+      const third = renderLibrary(Wrapper);
       await waitFor(() => {
-        const s = third.result.current.libraryState;
+        const s = readState(third.result);
         expect(
           s.status === "success" && s.exercises.map((e) => e.name),
         ).toEqual(["스쿼트"]);
       });
-      expect(countCalls(fetchMock, STATUS)).toBeGreaterThan(statusCallsBefore);
+      expect(countCalls(fetchMock, READ)).toBeGreaterThan(readCallsBefore);
     },
   );
 
-  it("status가 미연동을 알려 주면(연결이 실제로 바뀐 경우) 이전 목록 대신 내장 목록 안내로 바꾼다", async () => {
-    const { handlers, Wrapper } = await setupCachedNotion();
-    handlers.status = disconnectedStatus;
-
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-
-    await waitFor(() => {
-      const s = result.current.libraryState;
-      expect(s.status === "success" && s.source).toBe("builtin");
-    });
-    const state = result.current.libraryState;
-    if (state.status !== "success") throw new Error("success가 아님");
-    expect(state.message).toContain("노션 미연동");
-  });
-
-  it("status가 오류 응답(401 등)이면 이전 목록을 유지하지 않고 미연동 안내로 바꾼다", async () => {
-    const { handlers, Wrapper } = await setupCachedNotion();
-    handlers.status = () => jsonResponse({ error: "Unauthorized" }, 401);
-
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
-
-    await waitFor(() => {
-      const s = result.current.libraryState;
-      expect(s.status === "success" && s.source).toBe("builtin");
-    });
-  });
-
   it("캐시된 것이 Notion 목록이 아니면(내장 목록) exercise-read 오류는 그대로 error로 보여준다", async () => {
-    const handlers: { status: Handler; exerciseRead: Handler } = {
-      status: disconnectedStatus,
-      exerciseRead: twoRows,
-    };
-    stubFetch({
-      status: (init) => handlers.status(init),
-      exerciseRead: (init) => handlers.exerciseRead(init),
-    });
+    const handlers: { exerciseRead: Handler } = { exerciseRead: networkError };
+    stubFetch((init) => handlers.exerciseRead(init));
     const { Wrapper } = createQueryWrapper();
-    const first = renderHook(() => useExerciseLibrary(), { wrapper: Wrapper });
-    await waitFor(() =>
-      expect(first.result.current.libraryState.status).toBe("success"),
-    );
+    const first = renderLibrary(Wrapper);
+    await waitFor(() => expect(readState(first.result).status).toBe("success"));
     first.unmount();
-    handlers.status = connectedStatus;
     handlers.exerciseRead = () => jsonResponse({ error: "boom" }, 500);
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
     await waitFor(() =>
-      expect(result.current.libraryState).toEqual({
-        status: "error",
-        message: "boom",
-      }),
+      expect(readState(result)).toEqual({ status: "error", message: "boom" }),
     );
   });
 
   it("최초 조회(캐시 없음) 실패는 기존처럼 내장 목록으로 fallback한다", async () => {
-    stubFetch({ exerciseRead: networkError });
+    stubFetch(networkError);
     const { Wrapper } = createQueryWrapper();
 
-    const { result } = renderHook(() => useExerciseLibrary(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderLibrary(Wrapper);
 
     await waitFor(() => {
-      const s = result.current.libraryState;
+      const s = readState(result);
       expect(s.status === "success" && s.source).toBe("builtin");
     });
   });

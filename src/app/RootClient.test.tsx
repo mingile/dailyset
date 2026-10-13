@@ -20,6 +20,12 @@ type FetchOptions = {
   notionConnected?: boolean;
   enqueueStatus?: number;
   disconnectStatus?: number;
+  /** 처음 status 조회의 HTTP 상태 (기본 200) */
+  statusHttp?: number;
+  /** status 조회가 네트워크 오류로 실패 */
+  statusThrows?: boolean;
+  /** 연결 해제 뒤 다시 확인하는 status 조회의 HTTP 상태 (기본 200 = 연결 안 됨 응답) */
+  statusHttpAfterDisconnect?: number;
 };
 
 // Notion exercise DB 한 행. 연결된 상태에서 라이브러리가 렌더될 때 쓰인다.
@@ -44,21 +50,34 @@ function stubFetch({
   notionConnected = false,
   enqueueStatus = 200,
   disconnectStatus = 200,
+  statusHttp = 200,
+  statusThrows = false,
+  statusHttpAfterDisconnect = 200,
 }: FetchOptions = {}) {
+  let disconnected = false;
   // init은 쓰지 않지만 mock.calls의 타입에 요청 옵션(body)이 포함되도록 선언한다
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/api/notion/status")) {
-        return jsonResponse({ notionConnected, dbConnected: notionConnected });
+        if (statusThrows) throw new TypeError("Failed to fetch");
+        const http = disconnected ? statusHttpAfterDisconnect : statusHttp;
+        if (http !== 200) return jsonResponse({ error: "status failed" }, http);
+        const connected = notionConnected && !disconnected;
+        return jsonResponse({
+          notionConnected: connected,
+          dbConnected: connected,
+        });
       }
       if (url.includes("/api/notion/exercise-read")) {
         return jsonResponse({ data: [notionExerciseRow] });
       }
       if (url.includes("/api/notion/disconnect")) {
-        return disconnectStatus === 200
-          ? jsonResponse({ ok: true })
-          : jsonResponse({ error: "disconnect failed" }, disconnectStatus);
+        if (disconnectStatus !== 200) {
+          return jsonResponse({ error: "disconnect failed" }, disconnectStatus);
+        }
+        disconnected = true;
+        return jsonResponse({ ok: true });
       }
       if (url.includes("/api/sync/enqueue")) {
         return enqueueStatus === 200
@@ -76,10 +95,12 @@ function stubFetch({
   return fetchMock;
 }
 
+function getCalls(fetchMock: ReturnType<typeof stubFetch>, path: string) {
+  return fetchMock.mock.calls.filter(([input]) => String(input).includes(path));
+}
+
 function getEnqueueCalls(fetchMock: ReturnType<typeof stubFetch>) {
-  return fetchMock.mock.calls.filter(([input]) =>
-    String(input).includes("/api/sync/enqueue"),
-  );
+  return getCalls(fetchMock, "/api/sync/enqueue");
 }
 
 // ---- 픽스처 ----
@@ -611,5 +632,117 @@ describe("RootClient — Notion 연결 해제", () => {
 
     expect(screen.queryByText("Notion 연결 해제 완료")).not.toBeInTheDocument();
     expect(libraryIsCached(queryClient)).toBe(true);
+  });
+});
+
+describe("RootClient — Notion 연결 상태와 운동 라이브러리", () => {
+  const STATUS = "/api/notion/status";
+  const READ = "/api/notion/exercise-read";
+
+  it("연결 안 됨이면 라이브러리 진입 시 status를 한 번만 조회하고 미연동 안내를 보여준다", async () => {
+    const fetchMock = stubFetch({ notionConnected: false });
+    renderRoot();
+
+    expect(await screen.findByText(/노션 미연동/)).toBeInTheDocument();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+    expect(getCalls(fetchMock, READ)).toHaveLength(0);
+  });
+
+  it("연결되어 있으면 status 1번 + exercise-read 1번으로 Notion 목록을 보여준다", async () => {
+    const fetchMock = stubFetch({ notionConnected: true });
+    renderRoot();
+
+    expect(await screen.findByText("랫풀다운")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/기본 운동 목록을 사용 중/),
+    ).not.toBeInTheDocument();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+    expect(getCalls(fetchMock, READ)).toHaveLength(1);
+  });
+
+  it("status가 401(연결한 적 없음)이면 네트워크 문제가 아니라 미연동으로 안내한다", async () => {
+    const fetchMock = stubFetch({ statusHttp: 401 });
+    renderRoot();
+
+    expect(await screen.findByText(/노션 미연동/)).toBeInTheDocument();
+    expect(screen.queryByText(/네트워크 연결 없음/)).not.toBeInTheDocument();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+  });
+
+  it("status가 서버 오류(500)이면 연결 안 됨이 아니라 확인 못 함으로 안내한다", async () => {
+    const fetchMock = stubFetch({ statusHttp: 500 });
+    renderRoot();
+
+    expect(await screen.findByText(/네트워크 연결 없음/)).toBeInTheDocument();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+    expect(getCalls(fetchMock, READ)).toHaveLength(0);
+  });
+
+  it("status 조회가 네트워크 오류로 실패해도 한 번만 조회하고 확인 못 함으로 안내한다", async () => {
+    const fetchMock = stubFetch({ statusThrows: true });
+    renderRoot();
+
+    expect(await screen.findByText(/네트워크 연결 없음/)).toBeInTheDocument();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+  });
+
+  it("세션 화면에서 운동 추가 시트를 열고 닫고 다시 열어도 status·exercise-read를 더 부르지 않는다", async () => {
+    const fetchMock = stubFetch({ notionConnected: true });
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+    const user = renderRoot();
+    await waitForSessionScreen();
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: /운동 추가/ }));
+    expect(await screen.findByText("랫풀다운")).toBeInTheDocument();
+    expect(getCalls(fetchMock, READ)).toHaveLength(1);
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByText("랫풀다운")).not.toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: /운동 추가/ }));
+    expect(await screen.findByText("랫풀다운")).toBeInTheDocument();
+
+    expect(getCalls(fetchMock, STATUS)).toHaveLength(1);
+    expect(getCalls(fetchMock, READ)).toHaveLength(1);
+  });
+
+  describe("연결 해제 뒤 상태 재확인", () => {
+    const dotClass = () =>
+      screen.getByRole("button", { name: /설정/ }).querySelector("span")
+        ?.className ?? "";
+
+    it.each([
+      ["연결 안 됨 응답(200)", 200, "bg-red-500"],
+      ["연결 정보 없음(401)", 401, "bg-red-500"],
+      [
+        "서버 오류(500) — 확인 못 했으므로 기존 상태를 덮어쓰지 않는다",
+        500,
+        "bg-green-500",
+      ],
+    ])(
+      "재확인 결과가 %s이면 연결 표시를 올바르게 반영한다 (HTTP %i)",
+      async (_name, http, expected) => {
+        const fetchMock = stubFetch({
+          notionConnected: true,
+          statusHttpAfterDisconnect: http,
+        });
+        seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+        const user = renderRootWithClient().user;
+        await waitForSessionScreen();
+        expect(dotClass()).toContain("bg-green-500");
+
+        await user.click(screen.getByRole("button", { name: /설정/ }));
+        await user.click(screen.getByRole("button", { name: "연결 해제" }));
+
+        // 연결 해제 뒤 status를 한 번 더 확인한 결과가 반영될 때까지 기다린다
+        await waitFor(() =>
+          expect(getCalls(fetchMock, STATUS)).toHaveLength(2),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(dotClass()).toContain(expected);
+      },
+    );
   });
 });

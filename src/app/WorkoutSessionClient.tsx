@@ -22,6 +22,7 @@ import {
   SetItem,
   Session,
   ExerciseTimers,
+  NotionConnection,
 } from "./types";
 import { useEffect, useState, useRef } from "react";
 import { TrashIcon, Plus, Minus, CheckCircle2, Check } from "lucide-react";
@@ -82,6 +83,7 @@ export function WorkoutSessionClient({
   onExerciseTimersChange,
   onCompleteWorkout,
   saving,
+  notionConnection,
   hideSessionActions = false,
 }: {
   exercises: Exercises;
@@ -97,6 +99,8 @@ export function WorkoutSessionClient({
   ) => void;
   onCompleteWorkout: () => void;
   saving: boolean;
+  /** `운동 추가` 시트의 운동 목록이 Notion을 조회할지 정한다 */
+  notionConnection: NotionConnection;
   hideSessionActions?: boolean;
 }) {
   const {
@@ -508,6 +512,7 @@ export function WorkoutSessionClient({
             >
               <AddExerciseBottomSheet
                 exercises={exercises}
+                notionConnection={notionConnection}
                 addExercisesToSession={addExercisesToSession}
                 onClose={() => setIsAddExerciseSheetOpen(false)}
               />
@@ -940,14 +945,16 @@ function Row({
 
 function AddExerciseBottomSheet({
   exercises: currentExercises,
+  notionConnection,
   addExercisesToSession,
   onClose,
 }: {
   exercises: Exercises;
+  notionConnection: NotionConnection;
   addExercisesToSession: (newExercises: Exercises) => void;
   onClose: () => void;
 }) {
-  const { libraryState } = useExerciseLibrary();
+  const { libraryState } = useExerciseLibrary(notionConnection);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedExerciseIds, setSelectedExerciseIds] = useState<Set<string>>(
     new Set(),

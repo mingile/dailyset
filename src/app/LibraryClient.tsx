@@ -6,6 +6,7 @@ import {
   LibraryCategory,
   LibraryExercise,
   Exercise,
+  NotionConnection,
   SessionDraft,
 } from "./types";
 import { groupExercisesByCategory, getFirstValidCategory } from "@/lib/library";
@@ -28,11 +29,15 @@ function convertLibraryExerciseToSessionExercise(
 }
 
 interface LibraryClientProps {
+  notionConnection: NotionConnection;
   onConfirmSelection: (draft: SessionDraft) => void;
 }
 
-export function LibraryClient({ onConfirmSelection }: LibraryClientProps) {
-  const { libraryState, refetch } = useExerciseLibrary();
+export function LibraryClient({
+  notionConnection,
+  onConfirmSelection,
+}: LibraryClientProps) {
+  const { libraryState, refetch } = useExerciseLibrary(notionConnection);
   const [selectedCategory, setSelectedCategory] =
     useState<LibraryCategory | null>(null);
   const [selectedExercises, setSelectedExercises] = useState<Set<string>>(

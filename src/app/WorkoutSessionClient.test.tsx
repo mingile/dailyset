@@ -74,6 +74,7 @@ function Harness({
       onExerciseTimersChange={setExerciseTimers}
       onCompleteWorkout={onCompleteWorkout}
       saving={saving}
+      notionConnection="disconnected"
       hideSessionActions={hideSessionActions}
     />
   );

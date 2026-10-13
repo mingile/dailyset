@@ -100,3 +100,11 @@ export type DateInfo = {
   isToday: boolean;
   isFuture: boolean;
 };
+
+/**
+ * Notion 연결 상태. `RootClient`가 status를 한 번 조회한 결과를 운동 라이브러리 소비자에게 props로 내려준다.
+ * - connected: 연결됨
+ * - disconnected: 연결 안 됨이 확정됨 (연결한 적 없음, 연결 해제 등)
+ * - unknown: 확인하지 못함 (timeout, 네트워크 오류 등). 연결 안 됨과 다르다.
+ */
+export type NotionConnection = "connected" | "disconnected" | "unknown";
