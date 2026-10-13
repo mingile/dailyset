@@ -2,7 +2,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/sonner";
+import { EXERCISE_LIBRARY_QUERY_KEY } from "@/hooks/useExerciseLibrary";
 import { NOTION_OUTBOX_KEY } from "@/lib/notion-outbox";
+import { createQueryWrapper } from "@/test-utils/query";
 import { RootClient } from "./RootClient";
 import type { Session, SessionDraft } from "./types";
 
@@ -17,6 +19,18 @@ const SESSIONS_KEY = "workout.sessions.v1";
 type FetchOptions = {
   notionConnected?: boolean;
   enqueueStatus?: number;
+  disconnectStatus?: number;
+};
+
+// Notion exercise DB 한 행. 연결된 상태에서 라이브러리가 렌더될 때 쓰인다.
+const notionExerciseRow = {
+  id: "notion-page-lat",
+  properties: {
+    exercise_id: { rich_text: [{ plain_text: "lat-pulldown" }] },
+    이름: { title: [{ plain_text: "랫풀다운" }] },
+    카테고리: { select: { name: "등" } },
+    장비: { select: { name: "케이블" } },
+  },
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -29,6 +43,7 @@ function jsonResponse(body: unknown, status = 200) {
 function stubFetch({
   notionConnected = false,
   enqueueStatus = 200,
+  disconnectStatus = 200,
 }: FetchOptions = {}) {
   // init은 쓰지 않지만 mock.calls의 타입에 요청 옵션(body)이 포함되도록 선언한다
   const fetchMock = vi.fn(
@@ -36,6 +51,14 @@ function stubFetch({
       const url = String(input);
       if (url.includes("/api/notion/status")) {
         return jsonResponse({ notionConnected, dbConnected: notionConnected });
+      }
+      if (url.includes("/api/notion/exercise-read")) {
+        return jsonResponse({ data: [notionExerciseRow] });
+      }
+      if (url.includes("/api/notion/disconnect")) {
+        return disconnectStatus === 200
+          ? jsonResponse({ ok: true })
+          : jsonResponse({ error: "disconnect failed" }, disconnectStatus);
       }
       if (url.includes("/api/sync/enqueue")) {
         return enqueueStatus === 200
@@ -130,15 +153,21 @@ function readSessions(): Session[] {
   return JSON.parse(localStorage.getItem(SESSIONS_KEY) ?? "[]");
 }
 
-function renderRoot() {
+function renderRootWithClient() {
   const user = userEvent.setup();
+  const { queryClient, Wrapper } = createQueryWrapper();
   render(
     <>
       <RootClient />
       <Toaster position="top-center" />
     </>,
+    { wrapper: Wrapper },
   );
-  return user;
+  return { user, queryClient };
+}
+
+function renderRoot() {
+  return renderRootWithClient().user;
 }
 
 /** 세션 화면까지 뜨기를 기다린다 (Loading... → 세션) */
@@ -529,5 +558,58 @@ describe("RootClient — 기록(History)", () => {
       await screen.findByRole("button", { name: "운동 완료" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("어제 세션")).toBeNull();
+  });
+});
+
+describe("RootClient — Notion 연결 해제", () => {
+  const libraryIsCached = (
+    queryClient: ReturnType<typeof renderRootWithClient>["queryClient"],
+  ) => queryClient.getQueryState(EXERCISE_LIBRARY_QUERY_KEY) !== undefined;
+
+  async function openMenuAndDisconnect(user: ReturnType<typeof renderRoot>) {
+    await user.click(screen.getByRole("button", { name: /설정/ }));
+    await user.click(screen.getByRole("button", { name: "연결 해제" }));
+  }
+
+  it("연결 해제에 성공하면 캐시된 운동 라이브러리를 지운다", async () => {
+    stubFetch({ notionConnected: true });
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+    const { user, queryClient } = renderRootWithClient();
+    await waitForSessionScreen();
+    queryClient.setQueryData(EXERCISE_LIBRARY_QUERY_KEY, { status: "empty" });
+    expect(libraryIsCached(queryClient)).toBe(true);
+
+    await openMenuAndDisconnect(user);
+
+    expect(
+      await screen.findByText("Notion 연결 해제 완료"),
+    ).toBeInTheDocument();
+    expect(libraryIsCached(queryClient)).toBe(false);
+  });
+
+  it("연결 해제 요청이 실패하면 캐시를 그대로 둔다", async () => {
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      disconnectStatus: 500,
+    });
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+    const { user, queryClient } = renderRootWithClient();
+    await waitForSessionScreen();
+    queryClient.setQueryData(EXERCISE_LIBRARY_QUERY_KEY, { status: "empty" });
+
+    await openMenuAndDisconnect(user);
+
+    // 요청이 나가고 응답 처리(then)가 끝날 때까지 기다린 뒤 확인한다
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([input]) =>
+          String(input).includes("/api/notion/disconnect"),
+        ),
+      ).toHaveLength(1),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.queryByText("Notion 연결 해제 완료")).not.toBeInTheDocument();
+    expect(libraryIsCached(queryClient)).toBe(true);
   });
 });

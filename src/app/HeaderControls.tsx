@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { EXERCISE_LIBRARY_QUERY_KEY } from "@/hooks/useExerciseLibrary";
 import { withBasePath } from "@/lib/base-path";
 import {
   fetchWithTimeout,
@@ -71,6 +73,7 @@ export function HeaderControls({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const { theme, setTheme } = useTheme();
+  const queryClient = useQueryClient();
   const [themeMounted, setThemeMounted] = useState(false);
 
   useEffect(() => {
@@ -369,6 +372,11 @@ export function HeaderControls({
                             if (data.ok) {
                               toast.success("Notion 연결 해제 완료", {
                                 duration: 1000,
+                              });
+                              // 캐시된 Notion 운동 목록이 연결 해제 뒤에도 남지 않게 지운다.
+                              // (무효화만 하면 재조회가 실패했을 때 옛 목록이 유지된다.)
+                              queryClient.removeQueries({
+                                queryKey: EXERCISE_LIBRARY_QUERY_KEY,
                               });
                               checkNotionStatus();
                               setIsMenuOpen(false);
