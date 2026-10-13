@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./tests/pwa",
+  // tests/pwa: manifest·오프라인 등 PWA 동작, tests/e2e: 앱 화면·운동 흐름. tests/helpers.ts 는 공용.
+  testDir: "./tests",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
