@@ -10,7 +10,7 @@ import type { SavedExercise, Session } from "./types";
 
 const sessionKey = `workout.sessions.v1`;
 
-// 로컬 표준 시간 가져오기, 근데 왜 스웨덴 시간?
+// 로컬 표준 시간 가져오기
 function getLocalDateString(isoString: string): string {
   return new Date(isoString).toLocaleDateString("sv-SE");
 }
@@ -32,6 +32,9 @@ const SWIPE_MAX_OFFSET = -100;
 const SWIPE_DELETE_THRESHOLD = -50;
 // 이 거리 안에서는 가로/세로 어느 쪽 제스처인지 정하지 않는다.
 const SWIPE_AXIS_LOCK_DISTANCE = 8;
+// 삭제 배경(빨강)은 row가 비워 준 폭만큼만 그린다. content 밑으로 이만큼 겹쳐서 이음새에 틈이 안 생기게 한다.
+const SWIPE_REVEAL_OVERLAP_PX = 1;
+const SWIPE_RETURN_DURATION_MS = 150;
 const COLLAPSE_DURATION_MS = 200;
 // transitionend가 오지 않아도(백그라운드 탭 등) 삭제가 끝나도록 둔 여유 시간
 const COLLAPSE_FALLBACK_MS = COLLAPSE_DURATION_MS + 100;
@@ -57,6 +60,7 @@ function SwipeableSetRow({
 }) {
   const rowRef = useRef<HTMLLIElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const revealRef = useRef<HTMLDivElement>(null);
   const onDeleteRef = useRef(onDelete);
   const deleteStateRef = useRef<DeleteState>("idle");
   const collapseTimerRef = useRef<number | null>(null);
@@ -107,10 +111,18 @@ function SwipeableSetRow({
 
   function moveTo(offset: number, animate: boolean) {
     const content = contentRef.current;
-    if (!content) return;
+    const reveal = revealRef.current;
+    if (!content || !reveal) return;
     offsetRef.current = offset;
-    content.style.transition = animate ? "transform 150ms ease-out" : "none";
+
+    const duration = `${SWIPE_RETURN_DURATION_MS}ms ease-out`;
+    content.style.transition = animate ? `transform ${duration}` : "none";
     content.style.transform = `translateX(${offset}px)`;
+    // 빨간 배경을 content 밑에 깔아 두면 가장자리 안티앨리어싱으로 빨강이 비쳐 보인다.
+    // 그래서 content가 비운 폭만큼만 오른쪽에 그리고, 되돌아올 때도 같은 transition으로 같이 줄인다.
+    reveal.style.transition = animate ? `width ${duration}` : "none";
+    reveal.style.width =
+      offset < 0 ? `${-offset + SWIPE_REVEAL_OVERLAP_PX}px` : "0px";
   }
 
   function startSwipe(e: React.PointerEvent) {
@@ -176,12 +188,16 @@ function SwipeableSetRow({
       onPointerCancel={cancelSwipe}
       onPointerLeave={cancelSwipe}
     >
-      <div className="absolute inset-0 bg-destructive flex items-center justify-end pr-4">
-        <TrashIcon className="size-4 text-white" />
+      <div
+        ref={revealRef}
+        className="absolute inset-y-0 right-0 flex w-0 items-center justify-end overflow-hidden bg-destructive"
+      >
+        {/* 패딩을 주면 border-box라 width 0이어도 그만큼 칠해져 content 밑으로 비친다. 간격은 마진으로 준다. */}
+        <TrashIcon className="mr-4 size-4 shrink-0 text-white" />
       </div>
       <div
         ref={contentRef}
-        className="grid min-h-11 grid-cols-[2.5rem_1fr_1fr] items-center gap-1 border-b border-border bg-background px-1 text-base tabular-nums"
+        className="relative grid min-h-11 grid-cols-[2.5rem_1fr_1fr] items-center gap-1 border-b border-border bg-background px-1 text-base tabular-nums"
       >
         {children}
       </div>

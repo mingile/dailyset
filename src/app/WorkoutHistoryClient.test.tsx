@@ -47,11 +47,12 @@ function storedSetNos(): number[] {
 function getRow(setNo: number) {
   const row = screen.getByText(String(setNo).padStart(2, "0")).closest("li");
   if (!(row instanceof HTMLElement)) throw new Error("row를 찾지 못했습니다");
+  const reveal = row.children[0];
   const content = row.children[1];
-  if (!(content instanceof HTMLElement)) {
-    throw new Error("content를 찾지 못했습니다");
+  if (!(reveal instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+    throw new Error("reveal/content를 찾지 못했습니다");
   }
-  return { row, content };
+  return { row, reveal, content };
 }
 
 function renderHistory() {
@@ -355,6 +356,79 @@ describe("WorkoutHistoryClient — 제스처 안정화", () => {
     fireEvent.pointerCancel(row, pointerInit(START_X - 100, {}));
 
     expect(onRender).not.toHaveBeenCalled();
+  });
+});
+
+describe("WorkoutHistoryClient — 삭제 배경(빨강)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(SESSION_KEY, JSON.stringify([makeSession()]));
+  });
+
+  // jsdom은 그리기 순서와 안티앨리어싱을 모른다. 빨강이 content 밑에 깔려 있지 않다는 구조만 지킨다.
+  it("움직이지 않은 row에는 빨간 배경이 폭 0이라 칠해지는 곳이 없다", () => {
+    renderHistory();
+    const { reveal } = getRow(2);
+
+    expect(reveal).toHaveClass("w-0");
+    expect(reveal.style.width).toBe("");
+  });
+
+  it("빨간 배경에는 패딩/테두리가 없어서 폭 0이면 정말 아무것도 칠하지 않는다", () => {
+    renderHistory();
+    const { reveal } = getRow(2);
+
+    // box-sizing이 border-box라 padding이나 border가 있으면 width 0이어도 그만큼 폭이 남는다.
+    expect(reveal.className).not.toMatch(
+      /(^|\s)(p|px|pl|pr|border|border-[lrxtb])(-|\s|$)/,
+    );
+  });
+
+  it("빨간 배경은 row가 비운 폭만큼만 오른쪽에 그리고 이음새 쪽으로 1px 겹친다", () => {
+    renderHistory();
+    const { row, reveal } = getRow(2);
+
+    pointerDown(row);
+    pointerMove(row, START_X - 50);
+    expect(reveal.style.width).toBe("51px");
+
+    pointerMove(row, START_X - 150);
+    expect(reveal.style.width).toBe("101px");
+
+    pointerMove(row, START_X + 100);
+    expect(reveal.style.width).toBe("0px");
+  });
+
+  it("드래그 중에는 즉시 따라가고, 놓아서 되돌아갈 때는 content와 같은 transition으로 같이 줄어든다", () => {
+    renderHistory();
+    const { row, reveal, content } = getRow(2);
+
+    pointerDown(row);
+    pointerMove(row, START_X - 40);
+    expect(reveal.style.transition).toBe("none");
+
+    pointerUp(row, START_X - 40);
+    expect(reveal.style.width).toBe("0px");
+    expect(reveal.style.transition).toContain("150ms");
+    expect(reveal.style.transition).toContain("ease-out");
+    expect(content.style.transition).toContain("150ms");
+    expect(content.style.transition).toContain("ease-out");
+  });
+
+  it("삭제가 확정되어 접히는 동안에도 content가 비운 자리를 그대로 채운다", () => {
+    renderHistory();
+    const { row, reveal } = getRow(2);
+
+    swipeLeft(row, 80);
+
+    expect(row.style.height).toBe("0px");
+    expect(reveal.style.width).toBe("81px");
+  });
+
+  it("기록이 담긴 content는 삭제 배경(absolute)보다 항상 위에 그려지도록 position이 있다", () => {
+    renderHistory();
+
+    expect(getRow(2).content).toHaveClass("relative");
   });
 });
 
