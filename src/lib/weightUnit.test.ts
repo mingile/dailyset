@@ -46,9 +46,9 @@ describe("nextWeight", () => {
   //cable-machine
   it("lb 단위 장비는 lb step만큼 증가한다", () => {
     const weightKg = lbToKg(10);
-    expect(nextWeight(weightKg, "cable-machine", "increase")).toBeCloseTo(
-      lbToKg(20),
-      5, // 소수점 5자리까지 허용
+    // nextWeight는 결과를 0.1kg 단위로 반올림한다
+    expect(nextWeight(weightKg, "cable-machine", "increase")).toBe(
+      Math.round(lbToKg(20) * 10) / 10,
     );
   });
   it("lb 단위 장비는 lb step만큼 감소한다", () => {
