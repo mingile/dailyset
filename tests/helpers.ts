@@ -33,18 +33,34 @@ export async function mockNotionConnected(page: Page) {
   );
 }
 
-/** 라이브러리에서 운동 하나를 골라 세션 화면(`운동 완료` 버튼)까지 연다 */
+/**
+ * 라이브러리 화면에서 운동 하나를 골라 세션 화면(`운동 완료` 버튼)까지 연다.
+ * 첫 카테고리가 아닌 운동은 `category` 탭을 먼저 누른다.
+ */
+export async function startSessionFromLibrary(
+  page: Page,
+  exerciseName = "랫풀다운",
+  category?: string,
+) {
+  await page.getByRole("heading", { name: "운동 라이브러리" }).waitFor();
+  if (category) {
+    await page.getByRole("button", { name: category, exact: true }).click();
+  }
+  await page.getByText(exerciseName, { exact: true }).click();
+  await page.getByRole("button", { name: /선택 완료/ }).click();
+  await page.getByRole("button", { name: "운동 완료" }).waitFor();
+}
+
+/** /app을 열어(Notion 미연결) 운동 하나를 골라 세션 화면까지 연다 */
 export async function openLibrarySession(
   page: Page,
   exerciseName = "랫풀다운",
+  category?: string,
 ) {
   await dismissInstallPrompt(page);
   await mockNotionDisconnected(page);
   await page.goto(withBasePath("/app"));
-  await page.getByRole("heading", { name: "운동 라이브러리" }).waitFor();
-  await page.getByText(exerciseName, { exact: true }).click();
-  await page.getByRole("button", { name: /선택 완료/ }).click();
-  await page.getByRole("button", { name: "운동 완료" }).waitFor();
+  await startSessionFromLibrary(page, exerciseName, category);
 }
 
 /**
