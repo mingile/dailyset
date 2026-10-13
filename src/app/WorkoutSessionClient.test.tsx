@@ -1,10 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSessionExercises } from "@/hooks/useSessionExercises";
 import { kgToLb } from "@/lib/weightUnit";
-import type { Exercises, ExerciseTimers, SessionMetadata } from "./types";
+import type {
+  Exercises,
+  ExerciseTimers,
+  Session,
+  SessionMetadata,
+} from "./types";
 import { WorkoutSessionClient } from "./WorkoutSessionClient";
 
 // 이 파일은 "사용자가 누르고 입력했을 때 화면에 무엇이 보이는가"만 검증한다.
@@ -404,5 +409,229 @@ describe("WorkoutSessionClient — 운동 완료 버튼", () => {
     expect(
       screen.getByRole("button", { name: /운동 추가/ }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---- 이전 기록(PreviousRecord) · 기구 select ----
+// 이전 기록 매칭 규칙(기구 일치 → 운동명 fallback, 현재 세션 제외)은 previous-record.test.ts가 검증한다.
+// 여기서는 그 결과가 화면에 나오는지만 본다.
+
+const SESSIONS_KEY = "workout.sessions.v1";
+
+function seedSessions(sessions: Session[]) {
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+function makePastSession(
+  id: string,
+  savedAt: string,
+  sets: {
+    weight: number;
+    reps: number;
+    equipment?: string;
+    memo?: string;
+  }[],
+  exerciseName = "벤치프레스",
+): Session {
+  return {
+    id,
+    savedAt,
+    exercises: [
+      {
+        id: `${id}-ex`,
+        name: exerciseName,
+        sets: sets.map((set, index) => ({
+          setNo: index + 1,
+          weight: set.weight,
+          reps: set.reps,
+          equipment: set.equipment ?? "barbell",
+          memo: set.memo ?? "",
+        })),
+      },
+    ],
+  };
+}
+
+/** 이전 기록 영역. 현재 세트 행의 숫자와 섞이지 않도록 이 안에서만 찾는다 */
+function getPreviousRecordArea() {
+  const area = screen.getByText("이전 기록").closest("div.mt-4");
+  if (!(area instanceof HTMLElement)) {
+    throw new Error("이전 기록 영역을 찾지 못했습니다");
+  }
+  return area;
+}
+
+function formatDateLabel(iso: string) {
+  const date = new Date(iso);
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}`;
+}
+
+describe("WorkoutSessionClient — 이전 기록", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("같은 운동의 지난 기록이 있으면 날짜와 세트별 무게·횟수를 보여준다", async () => {
+    const savedAt = "2026-09-20T03:00:00.000Z";
+    seedSessions([
+      makePastSession("past-1", savedAt, [
+        { weight: 80, reps: 8 },
+        { weight: 85, reps: 6 },
+      ]),
+    ]);
+
+    await renderOpenedSession();
+
+    const area = within(getPreviousRecordArea());
+    expect(area.getByText(formatDateLabel(savedAt))).toBeInTheDocument();
+    expect(area.getByText("80")).toBeInTheDocument();
+    expect(area.getByText("8")).toBeInTheDocument();
+    expect(area.getByText("85")).toBeInTheDocument();
+    expect(area.getByText("6")).toBeInTheDocument();
+  });
+
+  it("지난 기록이 없으면 이전 기록 영역을 보여주지 않는다", async () => {
+    await renderOpenedSession();
+
+    expect(screen.queryByText("이전 기록")).toBeNull();
+  });
+
+  it("다른 운동의 기록만 있으면 이전 기록 영역을 보여주지 않는다", async () => {
+    seedSessions([
+      makePastSession(
+        "past-1",
+        "2026-09-20T03:00:00.000Z",
+        [{ weight: 100, reps: 5 }],
+        "스쿼트",
+      ),
+    ]);
+
+    await renderOpenedSession();
+
+    expect(screen.queryByText("이전 기록")).toBeNull();
+  });
+
+  it("현재 세션의 저장 기록은 이전 기록으로 쓰지 않고 그 전 기록을 보여준다", async () => {
+    seedSessions([
+      makePastSession("test-session", "2026-10-13T01:00:00.000Z", [
+        { weight: 100, reps: 3 },
+      ]),
+      makePastSession("past-1", "2026-09-20T03:00:00.000Z", [
+        { weight: 80, reps: 8 },
+      ]),
+    ]);
+
+    await renderOpenedSession();
+
+    const area = within(getPreviousRecordArea());
+    expect(area.getByText("80")).toBeInTheDocument();
+    expect(area.queryByText("100")).toBeNull();
+  });
+
+  it("lb 기구로 저장한 기록은 lb 단위로 표시한다", async () => {
+    seedSessions([
+      makePastSession("past-1", "2026-09-20T03:00:00.000Z", [
+        { weight: 45.4, reps: 10, equipment: "cable-machine" },
+      ]),
+    ]);
+
+    await renderOpenedSession();
+
+    expect(within(getPreviousRecordArea()).getByText("lb")).toBeInTheDocument();
+  });
+
+  it("메모가 있는 세트만 메모 보기 버튼이 있고, 누르면 메모 전문이 시트에 보인다", async () => {
+    seedSessions([
+      makePastSession("past-1", "2026-09-20T03:00:00.000Z", [
+        { weight: 80, reps: 8, memo: "마지막 반복이 힘들었음" },
+        { weight: 85, reps: 6 },
+      ]),
+    ]);
+    const user = await renderOpenedSession();
+    expect(
+      screen.queryByRole("button", { name: "세트 2 메모 전문 보기" }),
+    ).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: "세트 1 메모 전문 보기" }),
+    );
+
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByText("세트 01 메모")).toBeInTheDocument();
+    expect(
+      within(sheet).getByText("마지막 반복이 힘들었음"),
+    ).toBeInTheDocument();
+  });
+
+  it("메모 시트의 닫기를 누르면 시트가 닫힌다", async () => {
+    seedSessions([
+      makePastSession("past-1", "2026-09-20T03:00:00.000Z", [
+        { weight: 80, reps: 8, memo: "메모" },
+      ]),
+    ]);
+    const user = await renderOpenedSession();
+    await user.click(
+      screen.getByRole("button", { name: "세트 1 메모 전문 보기" }),
+    );
+    const sheet = await screen.findByRole("dialog");
+
+    await user.click(within(sheet).getByRole("button", { name: "닫기" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("WorkoutSessionClient — 기구 선택", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it("현재 세트의 기구가 선택돼 있다", async () => {
+    await renderOpenedSession();
+
+    expect(
+      screen.getByRole("combobox", { name: "현재 세트 기구" }),
+    ).toHaveDisplayValue("바벨");
+  });
+
+  it("다른 기구를 고르면 선택값이 바뀐다", async () => {
+    const user = await renderOpenedSession();
+    const select = screen.getByRole("combobox", { name: "현재 세트 기구" });
+
+    await user.selectOptions(select, "dumbbell");
+
+    expect(select).toHaveDisplayValue("덤벨");
+  });
+
+  it("기구를 바꾸면 그 기구로 저장한 이전 기록으로 표시가 바뀐다", async () => {
+    seedSessions([
+      makePastSession("past-dumbbell", "2026-09-25T03:00:00.000Z", [
+        { weight: 30, reps: 12, equipment: "dumbbell" },
+      ]),
+      makePastSession("past-barbell", "2026-09-20T03:00:00.000Z", [
+        { weight: 80, reps: 8, equipment: "barbell" },
+      ]),
+    ]);
+    const user = await renderOpenedSession();
+
+    // 현재 기구(바벨) 기록이 먼저 보인다
+    let area = within(getPreviousRecordArea());
+    expect(area.getByText("80")).toBeInTheDocument();
+    expect(area.queryByText("30")).toBeNull();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "현재 세트 기구" }),
+      "dumbbell",
+    );
+
+    area = within(getPreviousRecordArea());
+    expect(area.getByText("30")).toBeInTheDocument();
+    expect(area.queryByText("80")).toBeNull();
   });
 });
