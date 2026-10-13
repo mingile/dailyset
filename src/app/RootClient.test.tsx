@@ -26,6 +26,8 @@ type FetchOptions = {
   statusThrows?: boolean;
   /** 연결 해제 뒤 다시 확인하는 status 조회의 HTTP 상태 (기본 200 = 연결 안 됨 응답) */
   statusHttpAfterDisconnect?: number;
+  /** workout-records 응답 (호출 순서를 1부터 받는다). 기본은 빈 결과 */
+  workoutRecords?: (callNumber: number) => Response | Promise<Response>;
 };
 
 // Notion exercise DB 한 행. 연결된 상태에서 라이브러리가 렌더될 때 쓰인다.
@@ -46,6 +48,24 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+// Notion workout-records 한 행. 해당 운동의 가장 최근 기록으로 쓰인다.
+function workoutRecordsResponse(exercisePageId: string, weight: number) {
+  return jsonResponse({
+    results: [
+      {
+        properties: {
+          Name: { title: [{ plain_text: "기록" }] },
+          "Set No": { number: 1 },
+          Weight: { number: weight },
+          Reps: { number: 8 },
+          Date: { date: { start: "2026-10-01" } },
+          Exercise: { relation: [{ id: exercisePageId }] },
+        },
+      },
+    ],
+  });
+}
+
 function stubFetch({
   notionConnected = false,
   enqueueStatus = 200,
@@ -53,8 +73,10 @@ function stubFetch({
   statusHttp = 200,
   statusThrows = false,
   statusHttpAfterDisconnect = 200,
+  workoutRecords = () => jsonResponse({ results: [] }),
 }: FetchOptions = {}) {
   let disconnected = false;
+  let workoutRecordsCalls = 0;
   // init은 쓰지 않지만 mock.calls의 타입에 요청 옵션(body)이 포함되도록 선언한다
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -86,7 +108,8 @@ function stubFetch({
       }
       if (url.includes("/api/sync/status")) return jsonResponse({ jobs: [] });
       if (url.includes("/api/notion/workout-records")) {
-        return jsonResponse({ results: [] });
+        workoutRecordsCalls += 1;
+        return workoutRecords(workoutRecordsCalls);
       }
       throw new Error(`stub되지 않은 요청: ${url}`);
     },
@@ -744,5 +767,94 @@ describe("RootClient — Notion 연결 상태와 운동 라이브러리", () => 
         expect(dotClass()).toContain(expected);
       },
     );
+  });
+});
+
+describe("RootClient — Notion 기록으로 첫 세트 채우기", () => {
+  const RECORDS = "/api/notion/workout-records";
+
+  const readFirstSetWeight = () => {
+    const draft: SessionDraft = JSON.parse(
+      localStorage.getItem(DRAFT_KEY) ?? "null",
+    );
+    return draft.exercises[0].sets[0].weight;
+  };
+
+  it("연결되어 있으면 세션 화면에서 최근 기록을 첫 세트에 채운다", async () => {
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      workoutRecords: () => workoutRecordsResponse("notion-page-1", 80),
+    });
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1", doneSets: 0 }));
+    renderRoot();
+    await waitForSessionScreen();
+
+    await waitFor(() => expect(readFirstSetWeight()).toBe(80));
+    expect(getCalls(fetchMock, RECORDS)).toHaveLength(1);
+  });
+
+  it("첫 세트를 이미 완료했다면 기록으로 덮어쓰지 않는다", async () => {
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      workoutRecords: () => workoutRecordsResponse("notion-page-1", 80),
+    });
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1", doneSets: 1 }));
+    renderRoot();
+    await waitForSessionScreen();
+
+    await waitFor(() => expect(getCalls(fetchMock, RECORDS)).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readFirstSetWeight()).toBe(60);
+  });
+
+  it("세션이 바뀐 뒤 늦게 도착한 이전 세션의 응답은 적용하지 않는다", async () => {
+    let resolveStale: (response: Response) => void = () => {};
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      workoutRecords: (callNumber) =>
+        callNumber === 1
+          ? new Promise<Response>((resolve) => {
+              resolveStale = resolve;
+            })
+          : workoutRecordsResponse("notion-page-lat", 50),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    seedDraft(makeDraft({ exercisePageId: "notion-page-lat", doneSets: 0 }));
+    const user = renderRoot();
+    await waitForSessionScreen();
+    await waitFor(() => expect(getCalls(fetchMock, RECORDS)).toHaveLength(1));
+
+    // 첫 응답이 오기 전에 새 세션을 시작하고 같은 운동을 다시 고른다
+    await user.click(screen.getByRole("button", { name: "새 세션" }));
+    await user.click(await screen.findByText("랫풀다운", { exact: true }));
+    await user.click(screen.getByRole("button", { name: "선택 완료 (1)" }));
+    await waitForSessionScreen();
+    await waitFor(() => expect(readFirstSetWeight()).toBe(50));
+    expect(getCalls(fetchMock, RECORDS)).toHaveLength(2);
+
+    // 이전 세션의 응답이 뒤늦게 도착한다
+    resolveStale(workoutRecordsResponse("notion-page-lat", 80));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(readFirstSetWeight()).toBe(50);
+  });
+
+  it("세션을 떠나면 진행 중이던 기록 요청을 취소한다", async () => {
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      workoutRecords: () => new Promise<Response>(() => {}),
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+    const user = renderRoot();
+    await waitForSessionScreen();
+    await waitFor(() => expect(getCalls(fetchMock, RECORDS)).toHaveLength(1));
+    const requestSignal = getCalls(fetchMock, RECORDS)[0][1]?.signal;
+    expect(requestSignal?.aborted).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "새 세션" }));
+    await screen.findByRole("heading", { name: "운동 라이브러리" });
+
+    expect(requestSignal?.aborted).toBe(true);
   });
 });

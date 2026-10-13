@@ -68,11 +68,10 @@ export function RootClient() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const [notionStatusLoading, setNotionStatusLoading] = useState<boolean>(true);
-  const [notionConnected, setNotionConnected] = useState<boolean>(false);
-  const [dbConnected, setDbConnected] = useState<boolean>(false);
-  // 운동 라이브러리에 내려주는 연결 상태. dbConnected와 달리 "확인 못 함"과 "연결 안 됨"을 구분한다.
+  // 연결 상태. "확인 못 함"과 "연결 안 됨"을 구분한다.
   const [notionConnection, setNotionConnection] =
     useState<NotionConnection>("unknown");
+  const dbConnected = notionConnection === "connected";
 
   const savingRef = useRef<boolean>(false);
   // 상태 조회가 실패하면 "연결 안 됨"이 아니라 "확인 못 함"이다.
@@ -90,14 +89,19 @@ export function RootClient() {
     if (!sessionMetadata) return;
     if (!exercises.length) return;
 
+    // 세션이 바뀌거나 화면을 떠나면 늦게 도착한 응답이 다른 세션에 적용되지 않도록 취소한다.
+    const controller = new AbortController();
+
     const fetchWorkoutRecords = async () => {
       try {
         const res = await fetch(withBasePath("/api/notion/workout-records"), {
           method: "GET",
           credentials: "include",
+          signal: controller.signal,
         });
 
         const data = await res.json();
+        if (controller.signal.aborted) return;
 
         function getTitle(properties: any) {
           if (!properties) return null;
@@ -255,11 +259,13 @@ export function RootClient() {
           });
         });
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("fetch 실패:", error);
       }
     };
 
     fetchWorkoutRecords();
+    return () => controller.abort();
   }, [hydrated, dbConnected, entryMode, sessionMetadata?.sessionId]);
 
   useEffect(() => {
@@ -812,13 +818,9 @@ export function RootClient() {
 
       notionStatusUnknownRef.current = false;
       nextConnection = data.dbConnected ? "connected" : "disconnected";
-      setNotionConnected(!!data.notionConnected);
-      setDbConnected(!!data.dbConnected);
     } catch (err) {
       console.error("Notion 상태 조회 중 오류", err);
       notionStatusUnknownRef.current = true;
-      setNotionConnected(false);
-      setDbConnected(false);
     } finally {
       setNotionConnection(nextConnection);
       setNotionStatusLoading(false);
@@ -827,7 +829,6 @@ export function RootClient() {
 
   /** HeaderControls가 연결 해제 뒤 다시 확인한 결과를 반영한다 */
   function handleNotionReadyChange(ready: boolean) {
-    setDbConnected(ready);
     setNotionConnection(ready ? "connected" : "disconnected");
   }
 
