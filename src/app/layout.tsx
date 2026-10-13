@@ -5,7 +5,6 @@ import "./globals.css";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { ThemeSwitcher } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
 import { withBasePath } from "@/lib/base-path";
 
 export const viewport: Viewport = {
@@ -97,7 +96,6 @@ export default function RootLayout({
       >
         <ThemeSwitcher attribute="class">
           {children}
-          <Toaster position="top-center" />
           <PwaInstallPrompt />
         </ThemeSwitcher>
         <ServiceWorkerRegister />
