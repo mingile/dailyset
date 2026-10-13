@@ -56,10 +56,12 @@ function Harness({
   onCompleteWorkout = () => {},
   saving = false,
   hideSessionActions = false,
+  withAddExerciseSlot = true,
 }: {
   onCompleteWorkout?: () => void;
   saving?: boolean;
   hideSessionActions?: boolean;
+  withAddExerciseSlot?: boolean;
 }) {
   const { exercises, actions } = useSessionExercises(makeExercises());
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
@@ -74,7 +76,11 @@ function Harness({
       onExerciseTimersChange={setExerciseTimers}
       onCompleteWorkout={onCompleteWorkout}
       saving={saving}
-      notionConnection="disconnected"
+      addExerciseSlot={
+        withAddExerciseSlot ? (
+          <button type="button">운동 추가</button>
+        ) : undefined
+      }
       hideSessionActions={hideSessionActions}
     />
   );
@@ -404,12 +410,20 @@ describe("WorkoutSessionClient — 운동 완료 버튼", () => {
     expect(screen.queryByRole("button", { name: /운동 추가/ })).toBeNull();
   });
 
-  it("기본 상태에서는 운동 추가 버튼이 보인다", () => {
+  it("addExerciseSlot을 넘기면 목록 끝에 그려진다", () => {
     render(<Harness />);
 
     expect(
       screen.getByRole("button", { name: /운동 추가/ }),
     ).toBeInTheDocument();
+  });
+
+  it("addExerciseSlot을 넘기지 않으면 운동 추가 버튼 자체가 없다 (랜딩 데모)", () => {
+    render(<Harness withAddExerciseSlot={false} />);
+
+    expect(screen.queryByRole("button", { name: /운동 추가/ })).toBeNull();
+    // 운동 완료 등 나머지 동작은 그대로다
+    expect(screen.getByRole("button", { name: "운동 완료" })).toBeEnabled();
   });
 });
 

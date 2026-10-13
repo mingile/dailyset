@@ -28,6 +28,7 @@ import {
   createLocalExercisesPayload,
   createNotionExercisesPayload,
 } from "@/lib/workoutSessionPayload";
+import { AddExerciseSheet } from "./AddExerciseSheet";
 import { HeaderControls } from "./HeaderControls";
 import { LibraryClient } from "./LibraryClient";
 import {
@@ -879,7 +880,13 @@ export function RootClient() {
         />
         {!showHistory && (
           <WorkoutSessionClient
-            notionConnection={notionConnection}
+            addExerciseSlot={
+              <AddExerciseSheet
+                exercises={exercises}
+                notionConnection={notionConnection}
+                addExercisesToSession={actions.addExercisesToSession}
+              />
+            }
             exercises={exercises}
             displayWeightUnit={displayWeightUnit}
             actions={actions}
