@@ -33,6 +33,54 @@ export async function mockNotionConnected(page: Page) {
   );
 }
 
+function notionExerciseRow(pageId: string, exerciseId: string, name: string) {
+  return {
+    id: pageId,
+    properties: {
+      exercise_id: { rich_text: [{ plain_text: exerciseId }] },
+      이름: { title: [{ plain_text: name }] },
+      카테고리: { select: { name: "등" } },
+      장비: { select: { name: "케이블" } },
+    },
+  };
+}
+
+/** Notion 운동 목록(랫풀다운, 시티드로우)을 돌려준다 */
+export async function mockNotionExerciseRead(page: Page) {
+  await page.route("**/api/notion/exercise-read", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: [
+          notionExerciseRow("notion-page-lat", "lat-pulldown", "랫풀다운"),
+          notionExerciseRow("notion-page-row", "seated-row", "시티드로우"),
+        ],
+      }),
+    }),
+  );
+}
+
+/** 세션 진입 시 부르는 최근 기록 조회를 빈 결과로 막는다 */
+export async function mockNotionWorkoutRecords(page: Page) {
+  await page.route("**/api/notion/workout-records", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ results: [] }),
+    }),
+  );
+}
+
+/** 페이지가 보낸 요청 중 경로가 `pathname`으로 끝나는 것의 횟수를 센다 */
+export function countRequests(page: Page, pathname: string) {
+  let count = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith(pathname)) count += 1;
+  });
+  return () => count;
+}
+
 /**
  * 라이브러리 화면에서 운동 하나를 골라 세션 화면(`운동 완료` 버튼)까지 연다.
  * 첫 카테고리가 아닌 운동은 `category` 탭을 먼저 누른다.
