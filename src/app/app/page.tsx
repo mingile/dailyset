@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PerfProfiler } from "@/components/perf-profiler";
 import { QueryProvider } from "@/components/query-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { RootClient } from "../RootClient";
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 export default function AppPage() {
   return (
     <QueryProvider>
-      <RootClient />
+      <PerfProfiler id="RootClient">
+        <RootClient />
+      </PerfProfiler>
       <Toaster position="top-center" />
     </QueryProvider>
   );

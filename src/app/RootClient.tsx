@@ -28,6 +28,7 @@ import {
   createLocalExercisesPayload,
   createNotionExercisesPayload,
 } from "@/lib/workoutSessionPayload";
+import { PerfProfiler } from "@/components/perf-profiler";
 import { AddExerciseSheet } from "./AddExerciseSheet";
 import { HeaderControls } from "./HeaderControls";
 import { LibraryClient } from "./LibraryClient";
@@ -850,65 +851,73 @@ export function RootClient() {
 
   if (entryMode === "library") {
     return (
-      <LibraryClient
-        notionConnection={notionConnection}
-        onConfirmSelection={(draft) => {
-          hydrate(draft.exercises, false);
-          setSessionMetadata(draft.session);
-          setEntryMode("session");
-        }}
-      />
+      <PerfProfiler id="LibraryClient">
+        <LibraryClient
+          notionConnection={notionConnection}
+          onConfirmSelection={(draft) => {
+            hydrate(draft.exercises, false);
+            setSessionMetadata(draft.session);
+            setEntryMode("session");
+          }}
+        />
+      </PerfProfiler>
     );
   }
 
   if (entryMode === "session") {
     return (
       <div className="session-surface session-font flex flex-col h-100vh min-h-screen">
-        <HeaderControls
-          notionReady={dbConnected}
-          setNotionReady={handleNotionReadyChange}
-          sessionMetadata={sessionMetadata}
-          changeSessionName={changeSessionName}
-          selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
-          showHistory={showHistory}
-          setShowHistory={setShowHistory}
-          historyVersion={historyVersion}
-          onHistoryChanged={onSavedHistory}
-          unsyncedSessionIds={unsyncedSessionIds}
-          onRetryNotionJob={handleRetryNotionJob}
-          onStartNewSession={handleStartNewSession}
-        />
-        {!showHistory && (
-          <WorkoutSessionClient
-            addExerciseSlot={
-              <AddExerciseSheet
-                exercises={exercises}
-                notionConnection={notionConnection}
-                addExercisesToSession={actions.addExercisesToSession}
-              />
-            }
-            exercises={exercises}
-            displayWeightUnit={displayWeightUnit}
-            actions={actions}
+        <PerfProfiler id="HeaderControls">
+          <HeaderControls
+            notionReady={dbConnected}
+            setNotionReady={handleNotionReadyChange}
             sessionMetadata={sessionMetadata}
-            exerciseTimers={exerciseTimers}
-            onExerciseTimersChange={setExerciseTimers}
-            onCompleteWorkout={handleCompleteWorkout}
-            saving={saving}
+            changeSessionName={changeSessionName}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            showHistory={showHistory}
+            setShowHistory={setShowHistory}
+            historyVersion={historyVersion}
+            onHistoryChanged={onSavedHistory}
+            unsyncedSessionIds={unsyncedSessionIds}
+            onRetryNotionJob={handleRetryNotionJob}
+            onStartNewSession={handleStartNewSession}
           />
+        </PerfProfiler>
+        {!showHistory && (
+          <PerfProfiler id="WorkoutSessionClient">
+            <WorkoutSessionClient
+              addExerciseSlot={
+                <AddExerciseSheet
+                  exercises={exercises}
+                  notionConnection={notionConnection}
+                  addExercisesToSession={actions.addExercisesToSession}
+                />
+              }
+              exercises={exercises}
+              displayWeightUnit={displayWeightUnit}
+              actions={actions}
+              sessionMetadata={sessionMetadata}
+              exerciseTimers={exerciseTimers}
+              onExerciseTimersChange={setExerciseTimers}
+              onCompleteWorkout={handleCompleteWorkout}
+              saving={saving}
+            />
+          </PerfProfiler>
         )}
         {showHistory && (
           <div className="overflow-y-auto flex-grow pb-16">
-            <WorkoutHistoryClient
-              showHistory={showHistory}
-              historyVersion={historyVersion}
-              selectedDate={selectedDate}
-              notionReady={dbConnected}
-              onHistoryChanged={onSavedHistory}
-              unsyncedSessionIds={unsyncedSessionIds}
-              onRetryNotionJob={handleRetryNotionJob}
-            />
+            <PerfProfiler id="WorkoutHistoryClient">
+              <WorkoutHistoryClient
+                showHistory={showHistory}
+                historyVersion={historyVersion}
+                selectedDate={selectedDate}
+                notionReady={dbConnected}
+                onHistoryChanged={onSavedHistory}
+                unsyncedSessionIds={unsyncedSessionIds}
+                onRetryNotionJob={handleRetryNotionJob}
+              />
+            </PerfProfiler>
           </div>
         )}
       </div>
