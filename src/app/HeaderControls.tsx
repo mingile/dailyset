@@ -37,6 +37,23 @@ function formatSessionDateLabel(startedAt: string): string {
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()} ${dayOfWeek}`;
 }
 
+/** Notion 연결 상태 점: 연결됨은 초록, 아니면 빨강. 크기는 className으로 넘긴다. */
+function NotionStatusDot({
+  ready,
+  className,
+}: {
+  ready: boolean;
+  className: string;
+}) {
+  return (
+    <span
+      className={`${className} rounded-full ${
+        ready ? "bg-green-500" : "bg-red-500"
+      }`}
+    />
+  );
+}
+
 export function HeaderControls({
   notionReady,
   setNotionReady,
@@ -287,22 +304,14 @@ export function HeaderControls({
                 size="text"
               >
                 설정
-                <span
-                  className={`size-1.5 rounded-full ${
-                    notionReady ? "bg-green-500" : "bg-red-500"
-                  }`}
-                />
+                <NotionStatusDot ready={notionReady} className="size-1.5" />
               </Button>
 
               {isMenuOpen && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-64 border border-foreground bg-background">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`size-2 rounded-full ${
-                          notionReady ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
+                      <NotionStatusDot ready={notionReady} className="size-2" />
                       <span className="text-sm font-medium">
                         Notion {notionReady ? "연결됨" : "연결 안됨"}
                       </span>
