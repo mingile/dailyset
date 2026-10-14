@@ -2,18 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
+import { PageHeader } from "@/components/app/page-header";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
 import { shouldUseSafariHandoffFlow } from "@/lib/is-standalone-pwa";
 import { startNotionConnect } from "@/lib/notion-connect-session";
 
-const TEXT_BUTTON =
-  "inline-flex h-11 min-w-11 items-center justify-center px-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
-const PRIMARY_BUTTON =
-  "inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
-const SECONDARY_BUTTON =
-  "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
-const FIELD_LABEL =
-  "block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground";
+const FIELD_LABEL = `block ${EYEBROW}`;
 const FIELD_SELECT =
   "h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none focus-visible:border-b-2";
 
@@ -32,16 +30,10 @@ function NotionPageShell({
     <div className="session-surface session-font min-h-screen">
       <div className="mx-auto max-w-3xl px-4 pb-10">
         <div className="flex min-h-14 items-center justify-between">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
           <div className="flex items-center">{actions}</div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        <div className="mt-4 border-b border-foreground" />
+        <PageHeader title={title} description={description} />
         {children}
       </div>
     </div>
@@ -214,7 +206,7 @@ export default function NotionSettingsPage({
         title="Notion 연결"
         description="먼저 Notion OAuth 연결을 완료해야 데이터베이스를 선택할 수 있습니다."
         actions={
-          <Link href="/app" className={TEXT_BUTTON}>
+          <Link href="/app" className={cn(buttonVariants({ variant: "ghost", size: "text" }))}>
             홈으로
           </Link>
         }
@@ -234,7 +226,7 @@ export default function NotionSettingsPage({
               type="button"
               onClick={handleNotionConnect}
               disabled={connectLoading}
-              className={PRIMARY_BUTTON}
+              className={cn(buttonVariants({ variant: "accent", size: "cta" }))}
             >
               {connectLoading ? "연결 준비 중..." : "Notion 연동하기"}
             </button>
@@ -280,12 +272,12 @@ export default function NotionSettingsPage({
             type="button"
             onClick={() => fetchDatabaseOptions("refresh")}
             disabled={refreshing}
-            className={TEXT_BUTTON}
+            className={cn(buttonVariants({ variant: "ghost", size: "text" }))}
           >
             {refreshing ? "새로고침 중..." : "목록 새로고침"}
           </button>
 
-          <Link href="/app" className={TEXT_BUTTON}>
+          <Link href="/app" className={cn(buttonVariants({ variant: "ghost", size: "text" }))}>
             홈으로
           </Link>
         </>
@@ -300,12 +292,12 @@ export default function NotionSettingsPage({
               type="button"
               onClick={handleNotionConnect}
               disabled={connectLoading}
-              className={SECONDARY_BUTTON}
+              className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}
             >
               {connectLoading ? "연결 준비 중..." : "Notion 연동 다시 하기"}
             </button>
 
-            <Link href="/app" className={SECONDARY_BUTTON}>
+            <Link href="/app" className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}>
               홈으로
             </Link>
           </div>
@@ -389,7 +381,7 @@ export default function NotionSettingsPage({
             type="button"
             onClick={handleCompleteConnection}
             disabled={!isCompleteEnabled || submitting}
-            className={PRIMARY_BUTTON}
+            className={cn(buttonVariants({ variant: "accent", size: "cta" }))}
           >
             {submitting ? "저장 중..." : "연결 완료"}
           </button>

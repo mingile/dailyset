@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -24,9 +26,6 @@ import { SessionClock } from "./SessionClock";
 import type { DateInfo, Session, SessionMetadata } from "./types";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 
-const HEADER_TEXT_BUTTON =
-  "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
-
 function formatSessionDateLabel(startedAt: string): string {
   const date = new Date(startedAt);
   if (Number.isNaN(date.getTime())) return "";
@@ -36,6 +35,23 @@ function formatSessionDateLabel(startedAt: string): string {
   ];
 
   return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()} ${dayOfWeek}`;
+}
+
+/** Notion 연결 상태 점: 연결됨은 초록, 아니면 빨강. 크기는 className으로 넘긴다. */
+function NotionStatusDot({
+  ready,
+  className,
+}: {
+  ready: boolean;
+  className: string;
+}) {
+  return (
+    <span
+      className={`${className} rounded-full ${
+        ready ? "bg-green-500" : "bg-red-500"
+      }`}
+    />
+  );
 }
 
 export function HeaderControls({
@@ -220,17 +236,13 @@ export function HeaderControls({
     <>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex min-h-14 items-center justify-between px-4">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
           <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
               <SheetTrigger asChild>
                 <Button
                   variant="ghost"
-                  className={HEADER_TEXT_BUTTON}
+                  size="text"
                   aria-label={
                     unsyncedSessionIds.length > 0
                       ? `기록, Notion 미동기화 ${unsyncedSessionIds.length}건`
@@ -255,7 +267,7 @@ export function HeaderControls({
                     전체 운동 기록
                   </SheetTitle>
                   <SheetClose asChild>
-                    <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                    <Button variant="ghost" size="text">
                       닫기
                     </Button>
                   </SheetClose>
@@ -279,7 +291,7 @@ export function HeaderControls({
             {!showHistory && (
               <Button
                 variant="ghost"
-                className={HEADER_TEXT_BUTTON}
+                size="text"
                 onClick={onStartNewSession}
               >
                 새 세션
@@ -289,25 +301,17 @@ export function HeaderControls({
               <Button
                 variant="ghost"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={HEADER_TEXT_BUTTON}
+                size="text"
               >
                 설정
-                <span
-                  className={`size-1.5 rounded-full ${
-                    notionReady ? "bg-green-500" : "bg-red-500"
-                  }`}
-                />
+                <NotionStatusDot ready={notionReady} className="size-1.5" />
               </Button>
 
               {isMenuOpen && (
                 <div className="absolute right-0 top-full z-50 mt-2 w-64 border border-foreground bg-background">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`size-2 rounded-full ${
-                          notionReady ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
+                      <NotionStatusDot ready={notionReady} className="size-2" />
                       <span className="text-sm font-medium">
                         Notion {notionReady ? "연결됨" : "연결 안됨"}
                       </span>
@@ -316,7 +320,7 @@ export function HeaderControls({
 
                   {themeMounted && (
                     <div className="px-4 py-3 border-b border-border">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                      <span className={`mb-2 block ${EYEBROW}`}>
                         테마
                       </span>
                       <div

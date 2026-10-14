@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
 import {
   LibraryCategory,
   LibraryExercise,
@@ -11,6 +10,10 @@ import {
 } from "./types";
 import { groupExercisesByCategory, getFirstValidCategory } from "@/lib/library";
 import { createSessionMetadata } from "@/lib/session-utils";
+import { BrandMark } from "@/components/app/brand-mark";
+import { CategoryTabs } from "@/components/app/category-tabs";
+import { ExerciseRow } from "@/components/app/exercise-row";
+import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { useExerciseLibrary } from "@/hooks/useExerciseLibrary";
 import { getPreviousRecord } from "@/lib/previous-record";
@@ -164,50 +167,34 @@ export function LibraryClient({
     <div className="session-surface session-font flex flex-col h-screen">
       <header className="px-4">
         <div className="flex min-h-14 items-center">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">운동 라이브러리</h1>
-        {libraryState.status === "success" &&
-          libraryState.source === "builtin" &&
-          libraryState.message && (
-            <div className="mt-3 flex items-center gap-2 border-l-2 border-(--session-accent) pl-3 text-xs text-muted-foreground">
-              {libraryState.message}
-              <Button
-                variant="ghost"
-                className="ml-auto h-11 px-2 text-xs underline underline-offset-4"
-                onClick={() => {
-                  window.location.href = withBasePath("/settings/notion");
-                }}
-              >
-                Notion 연동 설정
-              </Button>
-            </div>
-          )}
-        <div className="mt-3 border-b border-foreground" />
+        <PageHeader title="운동 라이브러리">
+          {libraryState.status === "success" &&
+            libraryState.source === "builtin" &&
+            libraryState.message && (
+              <div className="mt-3 flex items-center gap-2 border-l-2 border-(--session-accent) pl-3 text-xs text-muted-foreground">
+                {libraryState.message}
+                <Button
+                  variant="ghost"
+                  className="ml-auto h-11 px-2 text-xs underline underline-offset-4"
+                  onClick={() => {
+                    window.location.href = withBasePath("/settings/notion");
+                  }}
+                >
+                  Notion 연동 설정
+                </Button>
+              </div>
+            )}
+        </PageHeader>
       </header>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 border-b border-border bg-background">
-          <div className="flex overflow-x-auto px-4">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`h-11 whitespace-nowrap border-b-2 px-3 text-sm ${
-                  selectedCategory === category
-                    ? "border-foreground font-bold"
-                    : "border-transparent text-muted-foreground"
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CategoryTabs
+          categories={categories}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+        />
 
         <div className="px-4 pb-4">
           {currentExercises.length === 0 ? (
@@ -215,54 +202,15 @@ export function LibraryClient({
               {selectedCategory}에 등록된 운동이 없습니다
             </p>
           ) : (
-            currentExercises.map((exercise, index) => {
-              const isSelected = selectedExercises.has(exercise.id);
-              const subtitle = [exercise.equipment, exercise.primaryEffect]
-                .filter(Boolean)
-                .join(" · ");
-
-              return (
-                <button
-                  key={exercise.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => toggleExerciseSelection(exercise.id)}
-                  className="relative flex min-h-14 w-full items-center gap-3 border-b border-border py-2 text-left"
-                >
-                  {isSelected && (
-                    <>
-                      <span className="pointer-events-none absolute inset-0 -mx-4 bg-(--session-accent)/20" />
-                      <span className="pointer-events-none absolute inset-y-0 -left-4 w-1 bg-(--session-accent)" />
-                    </>
-                  )}
-                  <span
-                    className={`relative w-6 shrink-0 text-sm tabular-nums ${isSelected ? "font-bold" : "text-muted-foreground"}`}
-                  >
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="relative h-6 shrink-0 border-l border-border" />
-                  <span className="relative min-w-0 flex-1">
-                    <span className="block truncate text-lg font-bold tracking-tight">
-                      {exercise.name}
-                    </span>
-                    {subtitle && (
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {subtitle}
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className={`relative flex size-7 shrink-0 items-center justify-center rounded-full border ${
-                      isSelected
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border"
-                    }`}
-                  >
-                    {isSelected && <Check className="size-4" />}
-                  </span>
-                </button>
-              );
-            })
+            currentExercises.map((exercise, index) => (
+              <ExerciseRow
+                key={exercise.id}
+                exercise={exercise}
+                index={index}
+                isSelected={selectedExercises.has(exercise.id)}
+                onToggle={() => toggleExerciseSelection(exercise.id)}
+              />
+            ))
           )}
         </div>
       </div>
@@ -274,11 +222,13 @@ export function LibraryClient({
           </p>
         )}
         <Button
-          className={`h-14 w-full text-lg font-bold ${
+          size="xl"
+          variant={selectedExercises.size === 0 ? "default" : "accent"}
+          className={
             selectedExercises.size === 0
-              ? "border border-foreground bg-transparent text-foreground hover:bg-transparent"
-              : "bg-(--session-accent) text-zinc-900 hover:bg-(--session-accent)/90"
-          }`}
+              ? "w-full border border-foreground bg-transparent text-foreground hover:bg-transparent"
+              : "w-full"
+          }
           onClick={handleConfirmSelection}
         >
           선택 완료 ({selectedExercises.size})

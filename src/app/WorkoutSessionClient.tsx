@@ -33,6 +33,7 @@ import {
 } from "@/lib/previous-record";
 import type { SessionExercisesActions } from "@/hooks/useSessionExercises";
 import { switchActiveExerciseTimer } from "@/lib/timer";
+import { EYEBROW } from "@/components/app/eyebrow";
 import { PerfProfiler } from "@/components/perf-profiler";
 import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
 import {
@@ -324,7 +325,7 @@ export function WorkoutSessionClient({
                           type="button"
                           disabled={!currentSet}
                           aria-label="무게 단위 전환"
-                          className="-mb-3.5 -mt-1.5 block w-full py-3.5 text-left text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground"
+                          className={`-mb-3.5 -mt-1.5 block w-full py-3.5 text-left ${EYEBROW}`}
                           onClick={() => {
                             if (!currentSet) return;
                             changeUnit(
@@ -357,9 +358,7 @@ export function WorkoutSessionClient({
                             );
                           }}
                         />
-                        <div className="mt-2 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
-                          reps
-                        </div>
+                        <div className={`mt-2 ${EYEBROW}`}>reps</div>
                       </div>
                       <div className="min-w-0 border-l border-border pl-2">
                         <div className="flex items-center justify-between">
@@ -379,9 +378,7 @@ export function WorkoutSessionClient({
                               <Minus className="size-4" />
                             </span>
                           </button>
-                          <span className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">
-                            set
-                          </span>
+                          <span className={EYEBROW}>set</span>
                           <button
                             type="button"
                             aria-label="세트 추가"
@@ -400,7 +397,7 @@ export function WorkoutSessionClient({
                                 className={
                                   allSetsDone
                                     ? "text-muted-foreground"
-                                    : "rounded-sm bg-(--session-accent) px-1 text-zinc-900"
+                                    : "rounded-sm bg-(--session-accent) px-1 text-(--session-accent-foreground)"
                                 }
                               >
                                 {String(
@@ -445,7 +442,7 @@ export function WorkoutSessionClient({
                   </div>
                   <div>
                     <div
-                      className={`grid ${SET_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground`}
+                      className={`grid ${SET_ROW_GRID} gap-1 px-1 pb-1 ${EYEBROW}`}
                     >
                       <span className="pl-2">세트</span>
                       <span />
@@ -495,7 +492,9 @@ export function WorkoutSessionClient({
         <Button
           onClick={onCompleteWorkout}
           disabled={saving}
-          className="mt-6 h-14 w-full bg-(--session-accent) text-lg font-bold text-zinc-900 hover:bg-(--session-accent)/90"
+          variant="accent"
+          size="xl"
+          className="mt-6 w-full"
         >
           {saving ? "처리중..." : "운동 완료"}
         </Button>
@@ -538,13 +537,13 @@ function PreviousRecord({
 
   return (
     <div className="mt-4 text-muted-foreground">
-      <div className="flex items-baseline gap-2 px-1 pl-3 text-xs font-medium uppercase tracking-[0.15em]">
+      <div className={`flex items-baseline gap-2 px-1 pl-3 ${EYEBROW}`}>
         <span>이전 기록</span>
         <span>/</span>
         <span className="tabular-nums">{dateLabel}</span>
       </div>
       <div
-        className={`mt-4 grid ${PREVIOUS_ROW_GRID} gap-1 px-1 pb-1 text-xs font-medium uppercase tracking-[0.15em]`}
+        className={`mt-4 grid ${PREVIOUS_ROW_GRID} gap-1 px-1 pb-1 ${EYEBROW}`}
       >
         <span className="pl-2">세트</span>
         <span>무게</span>
@@ -601,7 +600,8 @@ function PreviousRecord({
               <Button
                 type="button"
                 variant="ghost"
-                className="-mr-2 h-11 min-w-11 rounded-none px-2 text-sm font-semibold tracking-[0.1em]"
+                size="text"
+                className="-mr-2"
                 onClick={() => setMemoSheetOpen(false)}
               >
                 닫기

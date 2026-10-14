@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { CategoryTabs } from "@/components/app/category-tabs";
+import { ExerciseRow } from "@/components/app/exercise-row";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -100,7 +102,8 @@ function AddExerciseBottomSheet({
         <Button
           type="button"
           variant="ghost"
-          className="-mr-2 h-11 min-w-11 rounded-none px-2 text-sm font-semibold tracking-[0.1em]"
+          size="text"
+          className="-mr-2"
           onClick={onClose}
         >
           닫기
@@ -185,23 +188,11 @@ function AddExerciseBottomSheet({
           />
         </div>
 
-        <div className="sticky top-0 z-10 border-b border-border bg-background">
-          <div className="flex overflow-x-auto px-4">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`h-11 whitespace-nowrap border-b-2 px-3 text-sm ${
-                  selectedCategory === category
-                    ? "border-foreground font-bold"
-                    : "border-transparent text-muted-foreground"
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CategoryTabs
+          categories={categories}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+        />
 
         <div className="px-4 pb-4">
           {filteredExercises.length === 0 ? (
@@ -213,65 +204,28 @@ function AddExerciseBottomSheet({
                   : `${selectedCategory}에 등록된 운동이 없습니다`}
             </p>
           ) : (
-            filteredExercises.map((exercise, index) => {
-              const isSelected = selectedExerciseIds.has(exercise.id);
-              const subtitle = [exercise.equipment, exercise.primaryEffect]
-                .filter(Boolean)
-                .join(" · ");
-
-              return (
-                <button
-                  key={exercise.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => toggleExerciseSelection(exercise.id)}
-                  className="relative flex min-h-14 w-full items-center gap-3 border-b border-border py-2 text-left"
-                >
-                  {isSelected && (
-                    <>
-                      <span className="pointer-events-none absolute inset-0 -mx-4 bg-(--session-accent)/20" />
-                      <span className="pointer-events-none absolute inset-y-0 -left-4 w-1 bg-(--session-accent)" />
-                    </>
-                  )}
-                  <span
-                    className={`relative w-6 shrink-0 text-sm tabular-nums ${isSelected ? "font-bold" : "text-muted-foreground"}`}
-                  >
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="relative h-6 shrink-0 border-l border-border" />
-                  <span className="relative min-w-0 flex-1">
-                    <span className="block truncate text-lg font-bold tracking-tight">
-                      {exercise.name}
-                    </span>
-                    {subtitle && (
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {subtitle}
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className={`relative flex size-7 shrink-0 items-center justify-center rounded-full border ${
-                      isSelected
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border"
-                    }`}
-                  >
-                    {isSelected && <Check className="size-4" />}
-                  </span>
-                </button>
-              );
-            })
+            filteredExercises.map((exercise, index) => (
+              <ExerciseRow
+                key={exercise.id}
+                exercise={exercise}
+                index={index}
+                isSelected={selectedExerciseIds.has(exercise.id)}
+                onToggle={() => toggleExerciseSelection(exercise.id)}
+              />
+            ))
           )}
         </div>
       </div>
 
       <div className="border-t border-border px-4 py-4">
         <Button
-          className={`h-14 w-full text-lg font-bold ${
+          size="xl"
+          variant={selectedExerciseIds.size === 0 ? "default" : "accent"}
+          className={
             selectedExerciseIds.size === 0
-              ? "border border-foreground bg-transparent text-foreground hover:bg-transparent"
-              : "bg-(--session-accent) text-zinc-900 hover:bg-(--session-accent)/90"
-          }`}
+              ? "w-full border border-foreground bg-transparent text-foreground hover:bg-transparent"
+              : "w-full"
+          }
           onClick={handleConfirm}
           disabled={selectedExerciseIds.size === 0}
         >

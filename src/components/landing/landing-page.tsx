@@ -1,12 +1,13 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
+import { Button } from "@/components/ui/button";
 import { LandingSessionDemo } from "@/components/landing/landing-session-demo";
 
 function SectionLabel({ index }: { index: string }) {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <span className="text-xs font-medium tracking-[0.2em] text-muted-foreground">
-        {index}
-      </span>
+      <span className={EYEBROW}>{index}</span>
     </div>
   );
 }
@@ -16,13 +17,8 @@ export function LandingPage() {
     <div className="session-surface session-font flex min-h-screen flex-col">
       <header className="border-b border-foreground">
         <div className="mx-auto flex min-h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link
-            href="/"
-            className="flex min-h-11 items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]"
-          >
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
+          <Link href="/" className="flex min-h-11 items-center">
+            <BrandMark />
           </Link>
         </div>
       </header>
@@ -32,7 +28,7 @@ export function LandingPage() {
           <div className="max-w-xl text-left">
             <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
               저번에{" "}
-              <span className="box-decoration-clone bg-(--session-accent) px-1.5 py-0.5 text-zinc-900">
+              <span className="box-decoration-clone bg-(--session-accent) px-1.5 py-0.5 text-(--session-accent-foreground)">
                 몇 세트
               </span>{" "}
               했더라?
@@ -48,9 +44,7 @@ export function LandingPage() {
 
         <section aria-label="Session demo">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-12">
-            <span className="mb-4 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Session Demo
-            </span>
+            <span className={`mb-4 block ${EYEBROW}`}>Session Demo</span>
             <LandingSessionDemo />
           </div>
         </section>
@@ -61,12 +55,9 @@ export function LandingPage() {
               <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                 다음 운동을 기록하세요.
               </p>
-              <Link
-                href="/app"
-                className="mt-8 inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900"
-              >
-                시작하기
-              </Link>
+              <Button asChild variant="accent" size="cta" className="mt-8">
+                <Link href="/app">시작하기</Link>
+              </Button>
             </div>
           </div>
         </section>

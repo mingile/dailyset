@@ -134,6 +134,8 @@
   --session-surface: #f5f3ef;
   --session-muted: #686871;
   --session-accent: #f2ec00;
+  /* accent 위 글자색. accent는 다크모드에서도 고정이므로 .dark에서 재정의하지 않는다 */
+  --session-accent-foreground: #18181b;
   /* 입력·포커스 밑줄은 비텍스트 3:1이 필요해 밝은 표면에서는 accent 대신 어두운 올리브를 쓴다 */
   --session-focus: #857f00;
 }
