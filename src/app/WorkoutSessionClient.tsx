@@ -33,6 +33,7 @@ import {
 } from "@/lib/previous-record";
 import type { SessionExercisesActions } from "@/hooks/useSessionExercises";
 import { switchActiveExerciseTimer } from "@/lib/timer";
+import { PerfProfiler } from "@/components/perf-profiler";
 import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
 import {
   AlertDialog,
@@ -454,21 +455,25 @@ export function WorkoutSessionClient({
                     </div>
                     <div className="border-t border-border">
                       {ex.sets.map((set, j) => (
-                        <Row
+                        <PerfProfiler
                           key={`${ex.id}-set-${j}`}
-                          exerciseIndex={i}
-                          setIndex={j}
-                          weight={set.weight}
-                          reps={set.reps}
-                          memo={set.memo || ""}
-                          done={set.done}
-                          setType={set.setType || "main"}
-                          isCurrent={!allSetsDone && j === currentSetIdx}
-                          exId={ex.id}
-                          actions={actions}
-                          displayWeightUnit={displayWeightUnit}
-                          unit={set.unit}
-                        />
+                          id={`Row:${i}:${j}`}
+                        >
+                          <Row
+                            exerciseIndex={i}
+                            setIndex={j}
+                            weight={set.weight}
+                            reps={set.reps}
+                            memo={set.memo || ""}
+                            done={set.done}
+                            setType={set.setType || "main"}
+                            isCurrent={!allSetsDone && j === currentSetIdx}
+                            exId={ex.id}
+                            actions={actions}
+                            displayWeightUnit={displayWeightUnit}
+                            unit={set.unit}
+                          />
+                        </PerfProfiler>
                       ))}
                     </div>
                     <PreviousRecord
