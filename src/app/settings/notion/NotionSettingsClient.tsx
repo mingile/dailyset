@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
 import { PageHeader } from "@/components/app/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,7 @@ import { withBasePath } from "@/lib/base-path";
 import { shouldUseSafariHandoffFlow } from "@/lib/is-standalone-pwa";
 import { startNotionConnect } from "@/lib/notion-connect-session";
 
-const FIELD_LABEL =
-  "block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground";
+const FIELD_LABEL = `block ${EYEBROW}`;
 const FIELD_SELECT =
   "h-12 w-full rounded-none border-0 border-b border-foreground bg-transparent text-base outline-none focus-visible:border-b-2";
 

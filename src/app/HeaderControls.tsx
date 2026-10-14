@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -310,7 +311,7 @@ export function HeaderControls({
 
                   {themeMounted && (
                     <div className="px-4 py-3 border-b border-border">
-                      <span className="mb-2 block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                      <span className={`mb-2 block ${EYEBROW}`}>
                         테마
                       </span>
                       <div

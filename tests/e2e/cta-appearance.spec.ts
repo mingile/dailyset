@@ -467,3 +467,172 @@ test.describe("제목 블록 구분선 간격", () => {
     ).toBe(17);
   });
 });
+
+type EyebrowLabel = { text: string; letterSpacing: string };
+
+/** 화면에서 12px / 500 / uppercase인 라벨(eyebrow)을 자기 텍스트 기준으로 모은다 */
+async function collectEyebrows(page: import("@playwright/test").Page) {
+  return page.evaluate((): EyebrowLabel[] => {
+    const labels: EyebrowLabel[] = [];
+    for (const el of document.querySelectorAll("body *")) {
+      const style = getComputedStyle(el);
+      if (
+        style.textTransform !== "uppercase" ||
+        style.fontSize !== "12px" ||
+        style.fontWeight !== "500"
+      ) {
+        continue;
+      }
+      const own = Array.from(el.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() ?? "")
+        .join("")
+        .trim();
+      if (own) labels.push({ text: own, letterSpacing: style.letterSpacing });
+    }
+    return labels;
+  });
+}
+
+/** eyebrow 라벨의 자간은 모두 0.15em(=12px × 0.15 = 1.8px)이고, 기대한 라벨이 실제로 잡혔는지 함께 본다 */
+function expectEyebrows(
+  labels: EyebrowLabel[],
+  expectedTexts: Array<string | string[]>,
+) {
+  expect(
+    labels.filter((label) => label.letterSpacing !== "1.8px"),
+    "자간이 1.8px이 아닌 eyebrow 라벨",
+  ).toEqual([]);
+  const texts = labels.map((label) => label.text);
+  for (const expected of expectedTexts) {
+    // 배열이면 그중 하나만 있으면 된다(예: 단위는 kg 또는 lb)
+    const options = Array.isArray(expected) ? expected : [expected];
+    expect(
+      options.some((text) => texts.includes(text)),
+      `eyebrow 라벨 ${options.join(" 또는 ")}`,
+    ).toBe(true);
+  }
+}
+
+/** 첫 운동이 접혀 있으면 펼친다 */
+async function expandFirstExercise(page: import("@playwright/test").Page) {
+  const firstSet = page.getByRole("checkbox", { name: "세트 1 완료" });
+  if (!(await firstSet.isVisible())) {
+    await page.getByRole("button", { name: /랫풀다운/ }).click();
+  }
+  await firstSet.waitFor();
+}
+
+test.describe("eyebrow 라벨 자간", () => {
+  test("세션: kg / reps / set 라벨과 세트 표 머리글", async ({ page }) => {
+    await openLibrarySession(page);
+    await expandFirstExercise(page);
+
+    expectEyebrows(await collectEyebrows(page), [
+      ["kg", "lb"],
+      "reps",
+      "set",
+      "세트",
+      "무게",
+      "횟수",
+      "완료",
+    ]);
+  });
+
+  test("세션: 이전 기록 영역", async ({ page }) => {
+    await openLibrarySession(page);
+    await page.getByRole("button", { name: /랫풀다운/ }).click();
+    await page.getByRole("checkbox", { name: "세트 1 완료" }).click();
+    await page.getByRole("button", { name: "운동 완료" }).click();
+    await startSessionFromLibrary(page, "랫풀다운");
+    await expandFirstExercise(page);
+
+    expectEyebrows(await collectEyebrows(page), [
+      "이전 기록",
+      "메모",
+      ["kg", "lb"],
+      "reps",
+    ]);
+  });
+
+  test("헤더 설정 메뉴: 테마", async ({ page }) => {
+    await openLibrarySession(page);
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByText("테마", { exact: true }).waitFor();
+
+    expectEyebrows(await collectEyebrows(page), ["테마"]);
+  });
+
+  test("랜딩: Session Demo와 섹션 번호", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await page.goto(withBasePath("/"));
+
+    expectEyebrows(await collectEyebrows(page), ["Session Demo"]);
+
+    // 섹션 번호는 숫자라 uppercase 여부와 무관하므로 값으로 직접 확인한다
+    const index = page
+      .locator('section[aria-label="Product philosophy"]')
+      .getByText("01", { exact: true });
+    expect(
+      await index.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          fontSize: style.fontSize,
+          fontWeight: style.fontWeight,
+          letterSpacing: style.letterSpacing,
+        };
+      }),
+    ).toEqual({ fontSize: "12px", fontWeight: "500", letterSpacing: "1.8px" });
+  });
+
+  test.describe("360px", () => {
+    test.use({ viewport: { width: 360, height: 740 } });
+
+    test("set 라벨이 −/+ 원과 겹치지 않고 가로 스크롤이 없다", async ({
+      page,
+    }) => {
+      await openLibrarySession(page);
+      await expandFirstExercise(page);
+
+      // Playwright의 getByText가 uppercase 텍스트를 못 찾아서 DOM에서 직접 찾는다
+      const rects = await page.evaluate(() => {
+        const rectOf = (el: Element | null | undefined) => {
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          return { left: rect.left, right: rect.right };
+        };
+        // 헤더 로고(daily set)에도 "set" 스팬이 있어서, 앞 형제가 "세트 삭제" 버튼인 것만 고른다
+        const label = Array.from(document.querySelectorAll("span")).find(
+          (el) =>
+            el.children.length === 0 &&
+            el.textContent?.trim() === "set" &&
+            el.previousElementSibling?.getAttribute("aria-label") ===
+              "세트 삭제",
+        );
+        // 세트 행에도 같은 이름의 버튼이 있어서, set 라벨 바로 앞뒤의 −/+ 버튼 안 원을 쓴다
+        return {
+          minus: rectOf(label?.previousElementSibling?.querySelector("span")),
+          label: rectOf(label),
+          plus: rectOf(label?.nextElementSibling?.querySelector("span")),
+        };
+      });
+      const { minus, label, plus } = rects;
+      expect(minus && label && plus, "− 원, set 라벨, + 원을 모두 찾음").toBeTruthy();
+
+      expect(minus!.right, "− 원 오른쪽 끝 ≤ 라벨 왼쪽 끝").toBeLessThanOrEqual(
+        label!.left,
+      );
+      expect(label!.right, "라벨 오른쪽 끝 ≤ + 원 왼쪽 끝").toBeLessThanOrEqual(
+        plus!.left,
+      );
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+        "가로 스크롤 없음",
+      ).toBe(true);
+    });
+  });
+});

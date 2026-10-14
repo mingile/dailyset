@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/app/brand-mark";
+import { EYEBROW } from "@/components/app/eyebrow";
 import { Button } from "@/components/ui/button";
 import { LandingSessionDemo } from "@/components/landing/landing-session-demo";
 
 function SectionLabel({ index }: { index: string }) {
   return (
     <div className="mb-6 flex items-center gap-3">
-      <span className="text-xs font-medium tracking-[0.2em] text-muted-foreground">
-        {index}
-      </span>
+      <span className={EYEBROW}>{index}</span>
     </div>
   );
 }
@@ -45,9 +44,7 @@ export function LandingPage() {
 
         <section aria-label="Session demo">
           <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-12">
-            <span className="mb-4 block text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Session Demo
-            </span>
+            <span className={`mb-4 block ${EYEBROW}`}>Session Demo</span>
             <LandingSessionDemo />
           </div>
         </section>
