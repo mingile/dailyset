@@ -24,9 +24,6 @@ import { SessionClock } from "./SessionClock";
 import type { DateInfo, Session, SessionMetadata } from "./types";
 import { WorkoutHistoryClient } from "./WorkoutHistoryClient";
 
-const HEADER_TEXT_BUTTON =
-  "h-11 min-w-11 gap-1 rounded-none px-2 text-sm font-semibold tracking-[0.1em]";
-
 function formatSessionDateLabel(startedAt: string): string {
   const date = new Date(startedAt);
   if (Number.isNaN(date.getTime())) return "";
@@ -230,7 +227,7 @@ export function HeaderControls({
               <SheetTrigger asChild>
                 <Button
                   variant="ghost"
-                  className={HEADER_TEXT_BUTTON}
+                  size="text"
                   aria-label={
                     unsyncedSessionIds.length > 0
                       ? `기록, Notion 미동기화 ${unsyncedSessionIds.length}건`
@@ -255,7 +252,7 @@ export function HeaderControls({
                     전체 운동 기록
                   </SheetTitle>
                   <SheetClose asChild>
-                    <Button variant="ghost" className={HEADER_TEXT_BUTTON}>
+                    <Button variant="ghost" size="text">
                       닫기
                     </Button>
                   </SheetClose>
@@ -279,7 +276,7 @@ export function HeaderControls({
             {!showHistory && (
               <Button
                 variant="ghost"
-                className={HEADER_TEXT_BUTTON}
+                size="text"
                 onClick={onStartNewSession}
               >
                 새 세션
@@ -289,7 +286,7 @@ export function HeaderControls({
               <Button
                 variant="ghost"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={HEADER_TEXT_BUTTON}
+                size="text"
               >
                 설정
                 <span

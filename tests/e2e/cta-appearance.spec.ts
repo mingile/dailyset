@@ -211,3 +211,91 @@ test.describe("앱 화면", () => {
     await expectAccent(add, XL);
   });
 });
+
+// Button size="text"(ghost) / variant="outline-strong" size="touch"의 외관 확인.
+async function readButtonStyle(locator: Locator) {
+  await locator.waitFor();
+  return locator.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return {
+      backgroundColor: style.backgroundColor,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      letterSpacing: style.letterSpacing,
+      borderTopLeftRadius: style.borderTopLeftRadius,
+      borderTopWidth: style.borderTopWidth,
+      borderTopColor: style.borderTopColor,
+      paddingLeft: style.paddingLeft,
+      minWidth: style.minWidth,
+      height: Math.round(rect.height),
+    };
+  });
+}
+
+/** 헤더·시트·Notion 페이지의 텍스트 버튼: h-11 min-w-11 rounded-none px-2 14px/600, 자간 0.1em(=1.4px) */
+const TEXT_BUTTON_STYLE = {
+  backgroundColor: TRANSPARENT,
+  fontSize: "14px",
+  fontWeight: "600",
+  letterSpacing: "1.4px",
+  borderTopLeftRadius: "0px",
+  minWidth: "44px",
+  height: 44,
+};
+
+test.describe("텍스트·보조 버튼", () => {
+  test("헤더의 기록 / 새 세션 / 설정과 시트의 닫기", async ({ page }) => {
+    await openLibrarySession(page);
+
+    for (const name of ["기록", "새 세션", "설정"]) {
+      expect(
+        await readButtonStyle(
+          page.getByRole("button", { name, exact: true }),
+        ),
+        name,
+      ).toMatchObject(TEXT_BUTTON_STYLE);
+    }
+
+    await page.getByRole("button", { name: /운동 추가/ }).click();
+    expect(
+      await readButtonStyle(
+        page.getByRole("dialog").getByRole("button", { name: "닫기" }),
+      ),
+    ).toMatchObject(TEXT_BUTTON_STYLE);
+  });
+
+  test("Notion 설정 페이지의 텍스트 링크(홈으로)", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await mockNotionDisconnected(page);
+    await page.goto(withBasePath("/settings/notion"));
+
+    expect(
+      await readButtonStyle(page.getByRole("link", { name: "홈으로" })),
+    ).toMatchObject(TEXT_BUTTON_STYLE);
+  });
+
+  test("Notion 연결 페이지의 보조 링크(Notion 설정으로)", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await seedHandoff(page);
+    await mockNotionStatus(page, {
+      notionConnected: false,
+      dbConnected: false,
+    });
+    await page.goto(withBasePath("/notion/connect"));
+
+    expect(
+      await readButtonStyle(
+        page.getByRole("link", { name: "Notion 설정으로" }),
+      ),
+    ).toMatchObject({
+      backgroundColor: TRANSPARENT,
+      fontSize: "14px",
+      fontWeight: "600",
+      borderTopWidth: "1px",
+      borderTopColor: ACCENT_FG,
+      paddingLeft: "16px",
+      height: 44,
+    });
+  });
+});

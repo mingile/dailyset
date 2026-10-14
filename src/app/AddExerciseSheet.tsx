@@ -100,7 +100,8 @@ function AddExerciseBottomSheet({
         <Button
           type="button"
           variant="ghost"
-          className="-mr-2 h-11 min-w-11 rounded-none px-2 text-sm font-semibold tracking-[0.1em]"
+          size="text"
+          className="-mr-2"
           onClick={onClose}
         >
           닫기

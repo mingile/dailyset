@@ -8,10 +8,6 @@ import { withBasePath } from "@/lib/base-path";
 import { shouldUseSafariHandoffFlow } from "@/lib/is-standalone-pwa";
 import { startNotionConnect } from "@/lib/notion-connect-session";
 
-const TEXT_BUTTON =
-  "inline-flex h-11 min-w-11 items-center justify-center px-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
-const SECONDARY_BUTTON =
-  "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
 const FIELD_LABEL =
   "block text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground";
 const FIELD_SELECT =
@@ -214,7 +210,7 @@ export default function NotionSettingsPage({
         title="Notion 연결"
         description="먼저 Notion OAuth 연결을 완료해야 데이터베이스를 선택할 수 있습니다."
         actions={
-          <Link href="/app" className={TEXT_BUTTON}>
+          <Link href="/app" className={cn(buttonVariants({ variant: "ghost", size: "text" }))}>
             홈으로
           </Link>
         }
@@ -280,12 +276,12 @@ export default function NotionSettingsPage({
             type="button"
             onClick={() => fetchDatabaseOptions("refresh")}
             disabled={refreshing}
-            className={TEXT_BUTTON}
+            className={cn(buttonVariants({ variant: "ghost", size: "text" }))}
           >
             {refreshing ? "새로고침 중..." : "목록 새로고침"}
           </button>
 
-          <Link href="/app" className={TEXT_BUTTON}>
+          <Link href="/app" className={cn(buttonVariants({ variant: "ghost", size: "text" }))}>
             홈으로
           </Link>
         </>
@@ -300,12 +296,12 @@ export default function NotionSettingsPage({
               type="button"
               onClick={handleNotionConnect}
               disabled={connectLoading}
-              className={SECONDARY_BUTTON}
+              className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}
             >
               {connectLoading ? "연결 준비 중..." : "Notion 연동 다시 하기"}
             </button>
 
-            <Link href="/app" className={SECONDARY_BUTTON}>
+            <Link href="/app" className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}>
               홈으로
             </Link>
           </div>

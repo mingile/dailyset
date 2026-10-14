@@ -24,9 +24,6 @@ import {
   type NotionConnectStatusSnapshot,
 } from "@/lib/notion-connect-ui-status";
 
-const SECONDARY_BUTTON =
-  "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
-
 export default function NotionConnectPage() {
   const [handoffId, setHandoffId] = useState<string | null>(null);
   const [handoffLaunched, setHandoffLaunched] = useState(false);
@@ -224,13 +221,13 @@ export default function NotionConnectPage() {
                   : "Safari가 자동으로 열리지 않나요?"}
               </p>
               <div className="flex flex-col gap-2">
-                <a href={safariAuthUrl} className={SECONDARY_BUTTON}>
+                <a href={safariAuthUrl} className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}>
                   Safari에서 다시 열기
                 </a>
                 <button
                   type="button"
                   onClick={handleCopyAuthUrl}
-                  className={SECONDARY_BUTTON}
+                  className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}
                 >
                   연결 주소 복사
                 </button>
@@ -272,7 +269,7 @@ export default function NotionConnectPage() {
                     : "처음부터 다시 연결"}
               </button>
             )}
-            <Link href={"/settings/notion"} className={SECONDARY_BUTTON}>
+            <Link href={"/settings/notion"} className={cn(buttonVariants({ variant: "outline-strong", size: "touch" }))}>
               Notion 설정으로
             </Link>
           </div>

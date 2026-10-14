@@ -23,6 +23,9 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         accent:
           "bg-(--session-accent) text-(--session-accent-foreground) hover:bg-(--session-accent)/90",
+        // 세션 화면 톤의 보조 버튼: 그림자 없이 border-foreground 외곽선만 쓴다(Notion 설정·연결)
+        "outline-strong":
+          "border border-foreground hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -33,6 +36,10 @@ const buttonVariants = cva(
         xl: "h-14 px-6 text-lg font-bold",
         // 페이지 안 인라인 CTA(Notion 설정·연결, 랜딩)
         cta: "h-12 px-5 text-base font-bold",
+        // 헤더·시트의 텍스트 버튼(기록 / 새 세션 / 설정 / 닫기)과 Notion 페이지의 텍스트 링크. variant="ghost"와 함께 쓴다
+        text: "h-11 min-w-11 gap-1 rounded-none px-2 font-semibold tracking-[0.1em]",
+        // variant="outline-strong" 보조 버튼용
+        touch: "h-11 px-4 font-semibold",
         icon: "size-9",
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
