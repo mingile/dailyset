@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
 import { shouldUseSafariHandoffFlow } from "@/lib/is-standalone-pwa";
 import { startNotionConnect } from "@/lib/notion-connect-session";
 
 const TEXT_BUTTON =
   "inline-flex h-11 min-w-11 items-center justify-center px-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
-const PRIMARY_BUTTON =
-  "inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
 const SECONDARY_BUTTON =
   "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
 const FIELD_LABEL =
@@ -234,7 +234,7 @@ export default function NotionSettingsPage({
               type="button"
               onClick={handleNotionConnect}
               disabled={connectLoading}
-              className={PRIMARY_BUTTON}
+              className={cn(buttonVariants({ variant: "accent", size: "cta" }))}
             >
               {connectLoading ? "연결 준비 중..." : "Notion 연동하기"}
             </button>
@@ -389,7 +389,7 @@ export default function NotionSettingsPage({
             type="button"
             onClick={handleCompleteConnection}
             disabled={!isCompleteEnabled || submitting}
-            className={PRIMARY_BUTTON}
+            className={cn(buttonVariants({ variant: "accent", size: "cta" }))}
           >
             {submitting ? "저장 중..." : "연결 완료"}
           </button>

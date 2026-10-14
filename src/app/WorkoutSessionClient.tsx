@@ -400,7 +400,7 @@ export function WorkoutSessionClient({
                                 className={
                                   allSetsDone
                                     ? "text-muted-foreground"
-                                    : "rounded-sm bg-(--session-accent) px-1 text-zinc-900"
+                                    : "rounded-sm bg-(--session-accent) px-1 text-(--session-accent-foreground)"
                                 }
                               >
                                 {String(
@@ -495,7 +495,9 @@ export function WorkoutSessionClient({
         <Button
           onClick={onCompleteWorkout}
           disabled={saving}
-          className="mt-6 h-14 w-full bg-(--session-accent) text-lg font-bold text-zinc-900 hover:bg-(--session-accent)/90"
+          variant="accent"
+          size="xl"
+          className="mt-6 w-full"
         >
           {saving ? "처리중..." : "운동 완료"}
         </Button>

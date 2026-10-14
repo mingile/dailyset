@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { LandingSessionDemo } from "@/components/landing/landing-session-demo";
 
 function SectionLabel({ index }: { index: string }) {
@@ -32,7 +33,7 @@ export function LandingPage() {
           <div className="max-w-xl text-left">
             <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
               저번에{" "}
-              <span className="box-decoration-clone bg-(--session-accent) px-1.5 py-0.5 text-zinc-900">
+              <span className="box-decoration-clone bg-(--session-accent) px-1.5 py-0.5 text-(--session-accent-foreground)">
                 몇 세트
               </span>{" "}
               했더라?
@@ -61,12 +62,9 @@ export function LandingPage() {
               <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                 다음 운동을 기록하세요.
               </p>
-              <Link
-                href="/app"
-                className="mt-8 inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900"
-              >
-                시작하기
-              </Link>
+              <Button asChild variant="accent" size="cta" className="mt-8">
+                <Link href="/app">시작하기</Link>
+              </Button>
             </div>
           </div>
         </section>

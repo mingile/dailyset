@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
 import {
   buildHandoffAuthUrl,
@@ -22,8 +24,6 @@ import {
   type NotionConnectStatusSnapshot,
 } from "@/lib/notion-connect-ui-status";
 
-const PRIMARY_BUTTON =
-  "inline-flex h-12 items-center justify-center rounded-md bg-(--session-accent) px-5 text-base font-bold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50";
 const SECONDARY_BUTTON =
   "inline-flex h-11 items-center justify-center rounded-md border border-foreground px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -206,7 +206,7 @@ export default function NotionConnectPage() {
 
         {uiStatus === "notion_authorized" && (
           <div className="space-y-3">
-            <a href={getSafariSettingsUrl()} className={PRIMARY_BUTTON}>
+            <a href={getSafariSettingsUrl()} className={cn(buttonVariants({ variant: "accent", size: "cta" }))}>
               Safari에서 DB 선택하기
             </a>
             <p className="text-xs text-muted-foreground">
@@ -263,7 +263,7 @@ export default function NotionConnectPage() {
                 type="button"
                 onClick={handleRetry}
                 disabled={retryLoading}
-                className={PRIMARY_BUTTON}
+                className={cn(buttonVariants({ variant: "accent", size: "cta" }))}
               >
                 {retryLoading
                   ? "다시 준비 중..."
@@ -279,7 +279,7 @@ export default function NotionConnectPage() {
         )}
 
         {uiStatus === "connected" && (
-          <Link href={"/app"} className={PRIMARY_BUTTON}>
+          <Link href={"/app"} className={cn(buttonVariants({ variant: "accent", size: "cta" }))}>
             Dailyset 홈으로
           </Link>
         )}

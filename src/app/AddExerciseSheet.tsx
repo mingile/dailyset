@@ -267,11 +267,13 @@ function AddExerciseBottomSheet({
 
       <div className="border-t border-border px-4 py-4">
         <Button
-          className={`h-14 w-full text-lg font-bold ${
+          size="xl"
+          variant={selectedExerciseIds.size === 0 ? "default" : "accent"}
+          className={
             selectedExerciseIds.size === 0
-              ? "border border-foreground bg-transparent text-foreground hover:bg-transparent"
-              : "bg-(--session-accent) text-zinc-900 hover:bg-(--session-accent)/90"
-          }`}
+              ? "w-full border border-foreground bg-transparent text-foreground hover:bg-transparent"
+              : "w-full"
+          }
           onClick={handleConfirm}
           disabled={selectedExerciseIds.size === 0}
         >
