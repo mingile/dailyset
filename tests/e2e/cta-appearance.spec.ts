@@ -299,3 +299,171 @@ test.describe("텍스트·보조 버튼", () => {
     });
   });
 });
+
+// 로고(● daily set)와 페이지 제목의 외관 기준선. 컴포넌트로 옮겨도 계산된 스타일이 같아야 한다.
+async function expectBrandMark(page: import("@playwright/test").Page) {
+  const mark = page.getByText("daily", { exact: true }).first().locator("..");
+  await mark.waitFor();
+
+  expect(
+    await mark.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        display: style.display,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        letterSpacing: style.letterSpacing,
+        columnGap: style.columnGap,
+      };
+    }),
+  ).toMatchObject({
+    display: "flex",
+    fontSize: "20px",
+    fontWeight: "500",
+    letterSpacing: "4px",
+    columnGap: "6px",
+  });
+
+  const dot = await mark.locator("span").first().evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      backgroundColor: getComputedStyle(el).backgroundColor,
+    };
+  });
+  expect(dot).toEqual({ width: 8, height: 8, backgroundColor: ACCENT_BG });
+
+  // --session-muted(#686871)
+  expect(
+    await mark
+      .getByText("set", { exact: true })
+      .evaluate((el) => getComputedStyle(el).color),
+  ).toBe("rgb(104, 104, 113)");
+}
+
+async function expectPageTitle(page: import("@playwright/test").Page) {
+  const title = page.getByRole("heading", { level: 1 }).first();
+  await title.waitFor();
+  expect(
+    await title.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        letterSpacing: style.letterSpacing,
+      };
+    }),
+  ).toEqual({ fontSize: "24px", fontWeight: "700", letterSpacing: "-0.6px" });
+}
+
+test.describe("로고와 제목 블록", () => {
+  test("랜딩의 로고", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await page.goto(withBasePath("/"));
+    await expectBrandMark(page);
+  });
+
+  test("라이브러리의 로고와 제목", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await mockNotionDisconnected(page);
+    await page.goto(withBasePath("/app"));
+    await page.getByRole("heading", { name: "운동 라이브러리" }).waitFor();
+    await expectBrandMark(page);
+    await expectPageTitle(page);
+  });
+
+  test("세션 헤더의 로고", async ({ page }) => {
+    await openLibrarySession(page);
+    await expectBrandMark(page);
+  });
+
+  test("Notion 설정 페이지의 로고와 제목", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await mockNotionDisconnected(page);
+    await page.goto(withBasePath("/settings/notion"));
+    await expectBrandMark(page);
+    await expectPageTitle(page);
+  });
+
+  test("Notion 연결 페이지의 로고와 제목", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await seedHandoff(page);
+    await mockNotionStatus(page, {
+      notionConnected: false,
+      dbConnected: false,
+    });
+    await page.goto(withBasePath("/notion/connect"));
+    await expectBrandMark(page);
+    await expectPageTitle(page);
+  });
+});
+
+/** `from` 요소의 아래쪽 끝에서 그 아래에 처음 나오는 1px `border-foreground` 선(제목 블록 구분선)의 아래쪽 끝까지 거리 */
+async function gapToDivider(from: Locator) {
+  await from.waitFor();
+  return from.evaluate((el) => {
+    const fromBottom = el.getBoundingClientRect().bottom;
+    let lineBottom = Number.POSITIVE_INFINITY;
+    for (const node of document.querySelectorAll("*")) {
+      const style = getComputedStyle(node);
+      if (
+        style.borderBottomWidth !== "1px" ||
+        style.borderBottomColor !== "rgb(24, 24, 27)"
+      ) {
+        continue;
+      }
+      const bottom = node.getBoundingClientRect().bottom;
+      if (bottom >= fromBottom - 0.5 && bottom < lineBottom) {
+        lineBottom = bottom;
+      }
+    }
+    return Math.round(lineBottom - fromBottom);
+  });
+}
+
+// 제목 블록의 구분선 간격은 16px(pb-4) + 선 1px = 17로 통일한다. 통일 전에는 라이브러리만 12px(mt-3) + 1px = 13이었다.
+test.describe("제목 블록 구분선 간격", () => {
+  test("라이브러리: 안내 박스(없으면 제목) 아래", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await mockNotionDisconnected(page);
+    await page.goto(withBasePath("/app"));
+    await page.getByRole("heading", { name: "운동 라이브러리" }).waitFor();
+
+    const notice = page.getByRole("button", { name: "Notion 연동 설정" });
+    const from = (await notice.count())
+      ? notice.locator("..")
+      : page.getByRole("heading", { level: 1 });
+    expect(await gapToDivider(from)).toBe(17);
+  });
+
+  test("Notion 설정: 설명 아래", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await mockNotionDisconnected(page);
+    await page.goto(withBasePath("/settings/notion"));
+
+    expect(
+      await gapToDivider(
+        page.getByText("먼저 Notion OAuth 연결을 완료해야", { exact: false }),
+      ),
+    ).toBe(17);
+  });
+
+  test("Notion 연결: 설명 아래", async ({ page }) => {
+    await dismissInstallPrompt(page);
+    await seedHandoff(page);
+    await mockNotionStatus(page, {
+      notionConnected: false,
+      dbConnected: false,
+    });
+    await page.goto(withBasePath("/notion/connect"));
+
+    expect(
+      await gapToDivider(
+        page
+          .getByRole("heading", { level: 1 })
+          .locator("xpath=following-sibling::p[1]"),
+      ),
+    ).toBe(17);
+  });
+});

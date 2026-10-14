@@ -11,6 +11,8 @@ import {
 } from "./types";
 import { groupExercisesByCategory, getFirstValidCategory } from "@/lib/library";
 import { createSessionMetadata } from "@/lib/session-utils";
+import { BrandMark } from "@/components/app/brand-mark";
+import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { useExerciseLibrary } from "@/hooks/useExerciseLibrary";
 import { getPreviousRecord } from "@/lib/previous-record";
@@ -164,30 +166,26 @@ export function LibraryClient({
     <div className="session-surface session-font flex flex-col h-screen">
       <header className="px-4">
         <div className="flex min-h-14 items-center">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">운동 라이브러리</h1>
-        {libraryState.status === "success" &&
-          libraryState.source === "builtin" &&
-          libraryState.message && (
-            <div className="mt-3 flex items-center gap-2 border-l-2 border-(--session-accent) pl-3 text-xs text-muted-foreground">
-              {libraryState.message}
-              <Button
-                variant="ghost"
-                className="ml-auto h-11 px-2 text-xs underline underline-offset-4"
-                onClick={() => {
-                  window.location.href = withBasePath("/settings/notion");
-                }}
-              >
-                Notion 연동 설정
-              </Button>
-            </div>
-          )}
-        <div className="mt-3 border-b border-foreground" />
+        <PageHeader title="운동 라이브러리">
+          {libraryState.status === "success" &&
+            libraryState.source === "builtin" &&
+            libraryState.message && (
+              <div className="mt-3 flex items-center gap-2 border-l-2 border-(--session-accent) pl-3 text-xs text-muted-foreground">
+                {libraryState.message}
+                <Button
+                  variant="ghost"
+                  className="ml-auto h-11 px-2 text-xs underline underline-offset-4"
+                  onClick={() => {
+                    window.location.href = withBasePath("/settings/notion");
+                  }}
+                >
+                  Notion 연동 설정
+                </Button>
+              </div>
+            )}
+        </PageHeader>
       </header>
 
       <div className="flex-1 overflow-y-auto">

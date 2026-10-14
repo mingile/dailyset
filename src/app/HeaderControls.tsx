@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { BrandMark } from "@/components/app/brand-mark";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -217,11 +218,7 @@ export function HeaderControls({
     <>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex min-h-14 items-center justify-between px-4">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
           <div className="flex items-center">
             <Sheet open={showAllHistory} onOpenChange={setShowAllHistory}>
               <SheetTrigger asChild>

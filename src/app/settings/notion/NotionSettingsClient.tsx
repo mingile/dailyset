@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { BrandMark } from "@/components/app/brand-mark";
+import { PageHeader } from "@/components/app/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
@@ -28,16 +30,10 @@ function NotionPageShell({
     <div className="session-surface session-font min-h-screen">
       <div className="mx-auto max-w-3xl px-4 pb-10">
         <div className="flex min-h-14 items-center justify-between">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
           <div className="flex items-center">{actions}</div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-        <div className="mt-4 border-b border-foreground" />
+        <PageHeader title={title} description={description} />
         {children}
       </div>
     </div>

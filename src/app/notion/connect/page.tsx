@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { BrandMark } from "@/components/app/brand-mark";
+import { PageHeader } from "@/components/app/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { withBasePath } from "@/lib/base-path";
@@ -187,19 +189,10 @@ export default function NotionConnectPage() {
     <div className="session-surface session-font min-h-screen">
       <div className="mx-auto max-w-lg space-y-6 px-4 pb-10">
         <div className="flex min-h-14 items-center">
-          <span className="flex items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]">
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
-          </span>
+          <BrandMark />
         </div>
 
-        <div className="border-b border-foreground pb-4">
-          <h1 className="text-2xl font-bold tracking-tight">{copy.title}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {copy.description}
-          </p>
-        </div>
+        <PageHeader title={copy.title} description={copy.description} />
 
         {uiStatus === "notion_authorized" && (
           <div className="space-y-3">

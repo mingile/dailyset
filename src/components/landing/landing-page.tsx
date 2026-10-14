@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/app/brand-mark";
 import { Button } from "@/components/ui/button";
 import { LandingSessionDemo } from "@/components/landing/landing-session-demo";
 
@@ -17,13 +18,8 @@ export function LandingPage() {
     <div className="session-surface session-font flex min-h-screen flex-col">
       <header className="border-b border-foreground">
         <div className="mx-auto flex min-h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <Link
-            href="/"
-            className="flex min-h-11 items-center gap-1.5 font-(family-name:--font-brand) text-xl font-medium tracking-[0.2em]"
-          >
-            <span className="size-2 rounded-full bg-(--session-accent)" />
-            <span>daily</span>
-            <span className="text-(--session-muted)">set</span>
+          <Link href="/" className="flex min-h-11 items-center">
+            <BrandMark />
           </Link>
         </div>
       </header>
