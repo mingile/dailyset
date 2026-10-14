@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Toaster } from "@/components/ui/sonner";
 import { EXERCISE_LIBRARY_QUERY_KEY } from "@/hooks/useExerciseLibrary";
-import { NOTION_OUTBOX_KEY } from "@/lib/notion-outbox";
+import {
+  NOTION_DB_CONNECTED_KEY,
+  NOTION_OUTBOX_KEY,
+  type NotionOutboxJob,
+} from "@/lib/notion-outbox";
 import { createQueryWrapper } from "@/test-utils/query";
 import { RootClient } from "./RootClient";
 import type { Session, SessionDraft } from "./types";
@@ -28,6 +32,8 @@ type FetchOptions = {
   statusHttpAfterDisconnect?: number;
   /** workout-records 응답 (호출 순서를 1부터 받는다). 기본은 빈 결과 */
   workoutRecords?: (callNumber: number) => Response | Promise<Response>;
+  /** exercise-read가 돌려줄 Notion 운동 행. 기본은 랫풀다운 한 행 */
+  exerciseRows?: unknown[];
 };
 
 // Notion exercise DB 한 행. 연결된 상태에서 라이브러리가 렌더될 때 쓰인다.
@@ -36,6 +42,17 @@ const notionExerciseRow = {
   properties: {
     exercise_id: { rich_text: [{ plain_text: "lat-pulldown" }] },
     이름: { title: [{ plain_text: "랫풀다운" }] },
+    카테고리: { select: { name: "등" } },
+    장비: { select: { name: "케이블" } },
+  },
+};
+
+// 랫풀다운과 같은 카테고리(등)라 탭을 바꾸지 않고 고를 수 있다.
+const seatedRowExerciseRow = {
+  id: "notion-page-row",
+  properties: {
+    exercise_id: { rich_text: [{ plain_text: "seated-row" }] },
+    이름: { title: [{ plain_text: "시티드로우" }] },
     카테고리: { select: { name: "등" } },
     장비: { select: { name: "케이블" } },
   },
@@ -74,6 +91,7 @@ function stubFetch({
   statusThrows = false,
   statusHttpAfterDisconnect = 200,
   workoutRecords = () => jsonResponse({ results: [] }),
+  exerciseRows = [notionExerciseRow],
 }: FetchOptions = {}) {
   let disconnected = false;
   let workoutRecordsCalls = 0;
@@ -92,7 +110,7 @@ function stubFetch({
         });
       }
       if (url.includes("/api/notion/exercise-read")) {
-        return jsonResponse({ data: [notionExerciseRow] });
+        return jsonResponse({ data: exerciseRows });
       }
       if (url.includes("/api/notion/disconnect")) {
         if (disconnectStatus !== 200) {
@@ -195,6 +213,52 @@ function seedSessions(sessions: Session[]) {
 
 function readSessions(): Session[] {
   return JSON.parse(localStorage.getItem(SESSIONS_KEY) ?? "[]");
+}
+
+/** 완료한 세션 하나를 Notion으로 보내는 outbox 작업 */
+function makeOutboxJob(
+  sessionId: string,
+  status: NotionOutboxJob["status"],
+  savedAt = "2026-09-20T03:00:00.000Z",
+): NotionOutboxJob {
+  return {
+    sessionId,
+    savedAt,
+    payload: {
+      sessionId,
+      sessionName: "보낼 세션",
+      startedAt: savedAt,
+      savedAt,
+      exercises: [
+        {
+          id: `${sessionId}-ex`,
+          name: "스쿼트",
+          part: "하체",
+          exercisePageId: "notion-page-squat",
+          sets: [
+            { setNo: 1, weight: 100, reps: 5, memo: "", equipment: "barbell" },
+          ],
+        },
+      ],
+    },
+    status,
+    attempts: status === "failed" ? 3 : 0,
+    ...(status === "failed" ? { failedReason: "HTTP 400" } : {}),
+    createdAt: savedAt,
+    updatedAt: savedAt,
+  };
+}
+
+function seedOutbox(jobs: NotionOutboxJob[]) {
+  localStorage.setItem(NOTION_OUTBOX_KEY, JSON.stringify(jobs));
+}
+
+function readOutboxJobs(): NotionOutboxJob[] {
+  return JSON.parse(localStorage.getItem(NOTION_OUTBOX_KEY) ?? "[]");
+}
+
+function enqueueBody(call: ReturnType<typeof getEnqueueCalls>[number]) {
+  return JSON.parse(String(call[1]?.body));
 }
 
 function renderRootWithClient() {
@@ -317,6 +381,55 @@ describe("RootClient — 라이브러리에서 세션 시작", () => {
       screen.getByText("운동을 최소 1개 이상 선택해주세요"),
     ).toBeInTheDocument();
     expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  // 라이브러리·운동 추가 시트가 Notion page id를 세션 운동에 넘기지 않으면 Notion 동기화가 통째로 건너뛰어진다.
+  it("Notion 목록에서 고른 운동과 운동 추가로 더한 운동이 Notion page id를 갖고 enqueue된다", async () => {
+    const fetchMock = stubFetch({
+      notionConnected: true,
+      exerciseRows: [notionExerciseRow, seatedRowExerciseRow],
+    });
+    const user = renderRoot();
+    await screen.findByRole("heading", { name: "운동 라이브러리" });
+
+    await user.click(await screen.findByText("랫풀다운", { exact: true }));
+    await user.click(screen.getByRole("button", { name: "선택 완료 (1)" }));
+    await waitForSessionScreen();
+
+    await user.click(screen.getByRole("button", { name: "운동 추가" }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(
+      await within(sheet).findByText("시티드로우", { exact: true }),
+    );
+    // 이미 세션에 있는 운동은 시트 목록에서 빠진다 (중복 추가 방지)
+    expect(within(sheet).queryByText("랫풀다운", { exact: true })).toBeNull();
+    await user.click(
+      within(sheet).getByRole("button", { name: "추가하기 (1)" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    for (const name of ["랫풀다운", "시티드로우"]) {
+      await user.click(screen.getByRole("button", { name: new RegExp(name) }));
+      await user.click(screen.getByRole("checkbox", { name: "세트 1 완료" }));
+    }
+    await user.click(screen.getByRole("button", { name: "운동 완료" }));
+
+    expect(
+      await screen.findByText("Notion 동기화 요청 완료"),
+    ).toBeInTheDocument();
+    const calls = getEnqueueCalls(fetchMock);
+    expect(calls).toHaveLength(1);
+    expect(
+      enqueueBody(calls[0]).exercises.map(
+        (ex: { name: string; exercisePageId?: string }) => [
+          ex.name,
+          ex.exercisePageId,
+        ],
+      ),
+    ).toEqual([
+      ["랫풀다운", "notion-page-lat"],
+      ["시티드로우", "notion-page-row"],
+    ]);
   });
 });
 
@@ -518,16 +631,21 @@ describe("RootClient — 기록(History)", () => {
     ).toBeInTheDocument();
   });
 
-  it("세션 삭제를 누르면 목록과 저장소에서 사라진다", async () => {
+  it("세션 삭제를 누르면 목록과 저장소에서 사라지고 Notion 재전송 대상에서도 빠진다", async () => {
     stubFetch();
     seedSessions([
       makeSavedSession("past-1", "지울 세션", "2026-09-20T03:00:00.000Z"),
       makeSavedSession("past-2", "남길 세션", "2026-09-19T03:00:00.000Z"),
     ]);
+    seedOutbox([
+      makeOutboxJob("past-1", "failed", "2026-09-20T03:00:00.000Z"),
+      makeOutboxJob("past-2", "failed", "2026-09-19T03:00:00.000Z"),
+    ]);
     seedDraft(makeDraft());
     const user = renderRoot();
     await waitForSessionScreen();
     const sheet = await openHistorySheet(user);
+    expect(within(sheet).getAllByText("노션 미동기화")).toHaveLength(2);
 
     const target = within(sheet)
       .getByText("지울 세션")
@@ -539,6 +657,9 @@ describe("RootClient — 기록(History)", () => {
     );
     expect(within(sheet).getByText("남길 세션")).toBeInTheDocument();
     expect(readSessions().map((s) => s.id)).toEqual(["past-2"]);
+    // 로컬에서 지운 세션은 나중에 자동 재전송으로 Notion에 생기면 안 된다
+    expect(readOutboxJobs().map((job) => job.sessionId)).toEqual(["past-2"]);
+    expect(within(sheet).getAllByText("노션 미동기화")).toHaveLength(1);
   });
 
   it("Notion에 보내지 못한 세션이 있으면 기록 버튼에 건수가 표시되고 다시 보내기가 보인다", async () => {
@@ -602,6 +723,96 @@ describe("RootClient — 기록(History)", () => {
       await screen.findByRole("button", { name: "운동 완료" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("어제 세션")).toBeNull();
+  });
+});
+
+// outbox 상태 전이 자체는 notion-outbox.test.ts가 보장한다. 여기서는 RootClient가 언제 재전송을 시작하는지만 본다.
+describe("RootClient — Notion 재전송(outbox)", () => {
+  it("앱을 열면 outbox에 남은 pending 작업을 다시 보낸다", async () => {
+    const fetchMock = stubFetch({ notionConnected: true });
+    seedOutbox([makeOutboxJob("past-1", "pending")]);
+    seedDraft(makeDraft());
+    renderRoot();
+    await waitForSessionScreen();
+
+    expect(
+      await screen.findByText("Notion 동기화 요청 1건 완료"),
+    ).toBeInTheDocument();
+    const calls = getEnqueueCalls(fetchMock);
+    expect(calls).toHaveLength(1);
+    expect(enqueueBody(calls[0]).sessionId).toBe("past-1");
+    expect(enqueueBody(calls[0])).not.toHaveProperty("retryNo");
+    expect(readOutboxJobs()).toMatchObject([
+      { sessionId: "past-1", status: "queued" },
+    ]);
+  });
+
+  it("오프라인에서 완료한 세션은 outbox에 남았다가 온라인이 되면 보낸다", async () => {
+    // 오프라인이면 status 조회도 실패한다. 마지막으로 확인한 연결 상태(연결됨)로 동기화 대상을 판단한다.
+    const fetchMock = stubFetch({ statusThrows: true });
+    localStorage.setItem(NOTION_DB_CONNECTED_KEY, "true");
+    const onLine = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    seedDraft(makeDraft({ exercisePageId: "notion-page-1" }));
+    const user = renderRoot();
+    await waitForSessionScreen();
+
+    await user.click(screen.getByRole("button", { name: "운동 완료" }));
+
+    expect(
+      await screen.findByText("연결되면 Notion에 자동으로 저장됩니다."),
+    ).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "운동 라이브러리" });
+    expect(getEnqueueCalls(fetchMock)).toHaveLength(0);
+    expect(readSessions().map((s) => s.id)).toEqual(["draft-session"]);
+    expect(readOutboxJobs()).toMatchObject([
+      { sessionId: "draft-session", status: "pending" },
+    ]);
+
+    onLine.mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+
+    await waitFor(() => expect(getEnqueueCalls(fetchMock)).toHaveLength(1));
+    const body = enqueueBody(getEnqueueCalls(fetchMock)[0]);
+    expect(body.sessionId).toBe("draft-session");
+    expect(body.exercises[0].exercisePageId).toBe("notion-page-1");
+    await waitFor(() =>
+      expect(readOutboxJobs()).toMatchObject([
+        { sessionId: "draft-session", status: "queued" },
+      ]),
+    );
+  });
+
+  it("다시 보내기를 누르면 실패한 작업을 다시 보내고 미동기화 표시를 지운다", async () => {
+    const fetchMock = stubFetch({ notionConnected: true });
+    seedSessions([
+      makeSavedSession("past-1", "미동기화 세션", "2026-09-20T03:00:00.000Z"),
+    ]);
+    seedOutbox([makeOutboxJob("past-1", "failed")]);
+    seedDraft(makeDraft());
+    const user = renderRoot();
+    await waitForSessionScreen();
+
+    await user.click(
+      screen.getByRole("button", { name: "기록, Notion 미동기화 1건" }),
+    );
+    const sheet = await screen.findByRole("dialog");
+    await user.click(
+      within(sheet).getByRole("button", { name: "다시 보내기" }),
+    );
+
+    expect(
+      await screen.findByText("Notion 동기화 요청 완료"),
+    ).toBeInTheDocument();
+    const calls = getEnqueueCalls(fetchMock);
+    expect(calls).toHaveLength(1);
+    expect(enqueueBody(calls[0])).toMatchObject({
+      sessionId: "past-1",
+      retryNo: 1,
+    });
+    expect(within(sheet).queryByText("노션 미동기화")).toBeNull();
+    expect(readOutboxJobs()).toMatchObject([
+      { sessionId: "past-1", status: "queued", retryCount: 1 },
+    ]);
   });
 });
 
