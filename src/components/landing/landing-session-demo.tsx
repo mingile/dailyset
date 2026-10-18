@@ -31,8 +31,6 @@ const INITIAL_EXERCISES: Exercises = [
     id: DEMO_EXERCISE_ID,
     name: "Squats",
     part: "legs",
-    targetMainSetCount: 3,
-    targetWarmupSetCount: 0,
     sets: [createDemoSet(60, 10), createDemoSet(60, 10), createDemoSet(60, 8)],
   },
 ];

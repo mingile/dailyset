@@ -14,8 +14,6 @@ export type Exercise = {
   sets: SetItem[];
   part?: string;
   exercisePageId?: string;
-  targetMainSetCount?: number;
-  targetWarmupSetCount?: number;
 };
 export type Exercises = Exercise[];
 export type Part = "back" | "chest" | "legs" | "shoulders";

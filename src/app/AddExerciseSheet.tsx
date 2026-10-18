@@ -70,20 +70,12 @@ function AddExerciseBottomSheet({
       const libraryEx = exerciseMap.get(id);
       if (libraryEx) {
         const sets = getPreviousRecord(libraryEx.name, libraryEx.equipment);
-        const mainSetCount = sets.filter(
-          (s) => (s.setType ?? "main") === "main",
-        ).length;
-        const warmupSetCount = sets.filter(
-          (s) => s.setType === "warmup",
-        ).length;
         newExercises.push({
           id: libraryEx.id,
           name: libraryEx.name,
           sets,
           part: libraryEx.category as string,
           exercisePageId: libraryEx.notionPageId,
-          targetMainSetCount: mainSetCount,
-          targetWarmupSetCount: warmupSetCount,
         });
       }
     }

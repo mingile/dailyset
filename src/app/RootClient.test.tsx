@@ -162,8 +162,6 @@ function makeDraft(
         name: "벤치프레스",
         part: "가슴",
         exercisePageId,
-        targetMainSetCount: 2,
-        targetWarmupSetCount: 0,
         sets: [0, 1].map((index) => ({
           weight: 60,
           reps: 10,
