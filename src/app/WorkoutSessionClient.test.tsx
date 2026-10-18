@@ -27,8 +27,6 @@ function makeExercises(): Exercises {
       id: "ex-bench",
       name: "벤치프레스",
       part: "가슴",
-      targetMainSetCount: 3,
-      targetWarmupSetCount: 0,
       sets: [1, 2, 3].map(() => ({
         weight: 60,
         reps: 10,

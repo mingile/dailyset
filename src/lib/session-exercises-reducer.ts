@@ -69,24 +69,10 @@ function deleteSet(exercises: Exercises, exId: string, setIdx: number) {
     if (ex.id !== exId) return ex;
     if (ex.sets.length === 1) return ex;
 
-    const deletedSet = ex.sets[setIdx];
-    if (!deletedSet) return ex;
-
-    const deletedSetType = deletedSet.setType ?? "main";
-
-    let newTargetWarmup = ex.targetWarmupSetCount ?? 0;
-    let newTargetMain = ex.targetMainSetCount ?? 0;
-
-    if (deletedSetType === "warmup") {
-      newTargetWarmup = Math.max(0, newTargetWarmup - 1);
-    } else if (deletedSetType === "main") {
-      newTargetMain = Math.max(1, newTargetMain - 1);
-    }
+    if (!ex.sets[setIdx]) return ex;
 
     return {
       ...ex,
-      targetWarmupSetCount: newTargetWarmup,
-      targetMainSetCount: newTargetMain,
       sets: ex.sets.filter((_, idx) => idx !== setIdx),
     };
   });
@@ -131,21 +117,8 @@ function changeSetType(
 
     if (oldSetType === newSetType) return ex;
 
-    let newTargetWarmup = ex.targetWarmupSetCount ?? 0;
-    let newTargetMain = ex.targetMainSetCount ?? 0;
-
-    if (oldSetType === "main" && newSetType === "warmup") {
-      newTargetMain = Math.max(1, newTargetMain - 1);
-      newTargetWarmup = newTargetWarmup + 1;
-    } else if (oldSetType === "warmup" && newSetType === "main") {
-      newTargetWarmup = Math.max(0, newTargetWarmup - 1);
-      newTargetMain = newTargetMain + 1;
-    }
-
     return {
       ...ex,
-      targetWarmupSetCount: newTargetWarmup,
-      targetMainSetCount: newTargetMain,
       sets: ex.sets.map((set, j) =>
         j === setIdx ? { ...set, setType: newSetType, synced: false } : set,
       ),

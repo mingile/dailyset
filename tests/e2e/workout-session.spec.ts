@@ -55,8 +55,6 @@ test.describe("Notion failure handling", () => {
             name: "벤치프레스",
             part: "가슴",
             exercisePageId: "notion-page-qa-1",
-            targetMainSetCount: 1,
-            targetWarmupSetCount: 0,
             sets: [
               {
                 weight: 60,

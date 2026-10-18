@@ -28,8 +28,6 @@ export function buildDraft(now = new Date()) {
       name: ex.name,
       part: ex.part,
       exercisePageId: `perf-page-${i + 1}`,
-      targetMainSetCount: SETS_PER_EXERCISE,
-      targetWarmupSetCount: 0,
       sets: Array.from({ length: SETS_PER_EXERCISE }, () => ({
         weight: ex.weight,
         reps: ex.reps,

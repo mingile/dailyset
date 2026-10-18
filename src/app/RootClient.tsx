@@ -362,25 +362,15 @@ export function RootClient() {
       if (storedDraft) {
         const parsedDraft = JSON.parse(storedDraft);
         if (isSessionDraft(parsedDraft)) {
-          const migratedExercises = parsedDraft.exercises.map((ex) => {
-            const mainSetCount = ex.sets.filter(
-              (s) => (s.setType ?? "main") === "main",
-            ).length;
-            const warmupSetCount = ex.sets.filter(
-              (s) => s.setType === "warmup",
-            ).length;
-            return {
-              ...ex,
-              sets: ex.sets.map((set) => ({
-                ...set,
-                unit:
-                  set.unit ?? (set.equipment === "cable-machine" ? "lb" : "kg"),
-                setType: set.setType ?? "main",
-              })),
-              targetMainSetCount: ex.targetMainSetCount ?? mainSetCount,
-              targetWarmupSetCount: ex.targetWarmupSetCount ?? warmupSetCount,
-            };
-          });
+          const migratedExercises = parsedDraft.exercises.map((ex) => ({
+            ...ex,
+            sets: ex.sets.map((set) => ({
+              ...set,
+              unit:
+                set.unit ?? (set.equipment === "cable-machine" ? "lb" : "kg"),
+              setType: set.setType ?? "main",
+            })),
+          }));
           hydrate(
             migratedExercises,
             parsedDraft.historyDirty ??
@@ -401,26 +391,16 @@ export function RootClient() {
       } else if (oldStoredEx) {
         const parsedEx = JSON.parse(oldStoredEx);
         if (isLegacySession(parsedEx)) {
-          const migratedExercises = parsedEx.exercises.map((ex) => {
-            const mainSetCount = ex.sets.filter(
-              (s) => (s.setType ?? "main") === "main",
-            ).length;
-            const warmupSetCount = ex.sets.filter(
-              (s) => s.setType === "warmup",
-            ).length;
-            return {
-              ...ex,
-              sets: ex.sets.map((set) => ({
-                ...set,
-                unit:
-                  set.unit ?? (set.equipment === "cable-machine" ? "lb" : "kg"),
-                setType: set.setType ?? "main",
-              })),
-              part: parsedEx.selectedPart,
-              targetMainSetCount: ex.targetMainSetCount ?? mainSetCount,
-              targetWarmupSetCount: ex.targetWarmupSetCount ?? warmupSetCount,
-            };
-          });
+          const migratedExercises = parsedEx.exercises.map((ex) => ({
+            ...ex,
+            sets: ex.sets.map((set) => ({
+              ...set,
+              unit:
+                set.unit ?? (set.equipment === "cable-machine" ? "lb" : "kg"),
+              setType: set.setType ?? "main",
+            })),
+            part: parsedEx.selectedPart,
+          }));
           hydrate(migratedExercises, false);
         }
         localStorage.removeItem("workout.session.v1");

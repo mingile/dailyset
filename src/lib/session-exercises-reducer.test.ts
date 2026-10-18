@@ -26,8 +26,6 @@ function createExercise(overrides: Partial<Exercise> = {}): Exercise {
     id: "ex-1",
     name: "Squats",
     exercisePageId: "page-1",
-    targetMainSetCount: 3,
-    targetWarmupSetCount: 0,
     sets: [createSet(), createSet(), createSet()],
     ...overrides,
   };
@@ -43,7 +41,6 @@ function createState(
         id: "ex-2",
         name: "Bench Press",
         exercisePageId: "page-2",
-        targetMainSetCount: 2,
         sets: [createSet({ weight: 40 }), createSet({ weight: 40 })],
       }),
     ],
@@ -251,15 +248,6 @@ describe("addSet", () => {
     expect(next.exercises[0].sets[1].setType).toBe("main");
   });
 
-  it("목표 세트 수는 바꾸지 않는다", () => {
-    const next = sessionExercisesReducer(createState(), {
-      type: "addSet",
-      exIdx: 0,
-    });
-    expect(next.exercises[0].targetMainSetCount).toBe(3);
-    expect(next.exercises[0].targetWarmupSetCount).toBe(0);
-  });
-
   it("세트가 없는 운동에는 아무것도 추가하지 않는다", () => {
     const state = createState({
       exercises: [createExercise({ sets: [] })],
@@ -270,25 +258,24 @@ describe("addSet", () => {
 });
 
 describe("deleteSet", () => {
-  it("exId로 운동을 찾아 세트를 지우고 본세트 목표를 1 줄인다", () => {
+  it("exId로 운동을 찾아 그 세트만 지운다", () => {
     const state = createState();
     const next = sessionExercisesReducer(state, {
       type: "deleteSet",
       exId: "ex-1",
       setIdx: 1,
     });
-    expect(next.exercises[0].sets).toHaveLength(2);
-    expect(next.exercises[0].targetMainSetCount).toBe(2);
-    expect(next.exercises[0].targetWarmupSetCount).toBe(0);
+    expect(next.exercises[0].sets).toEqual([
+      state.exercises[0].sets[0],
+      state.exercises[0].sets[2],
+    ]);
     expect(next.exercises[1]).toBe(state.exercises[1]);
   });
 
-  it("웜업 세트를 지우면 웜업 목표를 줄인다 (최소 0)", () => {
+  it("웜업 세트를 지우면 남은 본세트는 그대로 둔다", () => {
     const state = createState({
       exercises: [
         createExercise({
-          targetMainSetCount: 1,
-          targetWarmupSetCount: 1,
           sets: [createSet({ setType: "warmup" }), createSet()],
         }),
       ],
@@ -298,20 +285,7 @@ describe("deleteSet", () => {
       exId: "ex-1",
       setIdx: 0,
     });
-    expect(next.exercises[0].targetWarmupSetCount).toBe(0);
-    expect(next.exercises[0].targetMainSetCount).toBe(1);
-  });
-
-  it("본세트 목표는 1 아래로 내려가지 않는다", () => {
-    const state = createState({
-      exercises: [createExercise({ targetMainSetCount: 1 })],
-    });
-    const next = sessionExercisesReducer(state, {
-      type: "deleteSet",
-      exId: "ex-1",
-      setIdx: 0,
-    });
-    expect(next.exercises[0].targetMainSetCount).toBe(1);
+    expect(next.exercises[0].sets).toEqual([state.exercises[0].sets[1]]);
   });
 
   it("마지막 남은 세트는 지우지 않는다", () => {
@@ -324,7 +298,6 @@ describe("deleteSet", () => {
       setIdx: 0,
     });
     expect(next.exercises[0].sets).toHaveLength(1);
-    expect(next.exercises[0].targetMainSetCount).toBe(3);
   });
 
   it("없는 세트 인덱스 / 없는 exId는 아무것도 바꾸지 않는다", () => {
@@ -347,8 +320,9 @@ describe("deleteSet", () => {
 });
 
 describe("changeSetType", () => {
-  it("본세트 → 웜업: 본세트 목표 -1(최소 1), 웜업 목표 +1", () => {
-    const next = sessionExercisesReducer(createState(), {
+  it("본세트 → 웜업: 그 세트만 웜업으로 바꾸고 synced를 false로 만든다", () => {
+    const state = createState();
+    const next = sessionExercisesReducer(state, {
       type: "changeSetType",
       exIdx: 0,
       setIdx: 0,
@@ -358,16 +332,13 @@ describe("changeSetType", () => {
       setType: "warmup",
       synced: false,
     });
-    expect(next.exercises[0].targetMainSetCount).toBe(2);
-    expect(next.exercises[0].targetWarmupSetCount).toBe(1);
+    expect(next.exercises[0].sets[1]).toBe(state.exercises[0].sets[1]);
   });
 
-  it("웜업 → 본세트: 웜업 목표 -1(최소 0), 본세트 목표 +1", () => {
+  it("웜업 → 본세트: 그 세트만 본세트로 바꾸고 synced를 false로 만든다", () => {
     const state = createState({
       exercises: [
         createExercise({
-          targetMainSetCount: 1,
-          targetWarmupSetCount: 1,
           sets: [createSet({ setType: "warmup" }), createSet()],
         }),
       ],
@@ -378,23 +349,11 @@ describe("changeSetType", () => {
       setIdx: 0,
       setType: "main",
     });
-    expect(next.exercises[0].sets[0].setType).toBe("main");
-    expect(next.exercises[0].targetWarmupSetCount).toBe(0);
-    expect(next.exercises[0].targetMainSetCount).toBe(2);
-  });
-
-  it("본세트 목표는 1 아래로 내려가지 않는다", () => {
-    const state = createState({
-      exercises: [createExercise({ targetMainSetCount: 1 })],
+    expect(next.exercises[0].sets[0]).toMatchObject({
+      setType: "main",
+      synced: false,
     });
-    const next = sessionExercisesReducer(state, {
-      type: "changeSetType",
-      exIdx: 0,
-      setIdx: 0,
-      setType: "warmup",
-    });
-    expect(next.exercises[0].targetMainSetCount).toBe(1);
-    expect(next.exercises[0].targetWarmupSetCount).toBe(1);
+    expect(next.exercises[0].sets[1]).toBe(state.exercises[0].sets[1]);
   });
 
   it("같은 타입이면 운동 객체를 그대로 둔다", () => {
