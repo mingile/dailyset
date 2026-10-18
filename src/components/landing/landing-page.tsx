@@ -50,12 +50,12 @@ export function LandingPage() {
         </section>
 
         <section aria-label="Get started">
-          <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-20">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 sm:py-20">
             <div className="max-w-xl text-left">
               <p className="text-2xl font-bold tracking-tight sm:text-3xl">
                 다음 운동을 기록하세요.
               </p>
-              <Button asChild variant="accent" size="cta" className="mt-8">
+              <Button asChild variant="accent" size="cta" className="mt-4">
                 <Link href="/app">시작하기</Link>
               </Button>
             </div>
