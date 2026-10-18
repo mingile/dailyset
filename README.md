@@ -4,10 +4,30 @@
 
 [서비스 소개](https://daily.mingile.com/dailyset) · [앱 열기](https://daily.mingile.com/dailyset/app)
 
-| 운동 선택 | 세션 기록 | 기록 조회 | 설정 |
-| :-: | :-: | :-: | :-: |
-| <img src="./.github/assets/screenshot-exercise-select.jpeg" alt="부위별 탭에서 운동을 고르는 운동 선택 화면" width="180" /> | <img src="./.github/assets/screenshot-session.jpeg" alt="세트별 무게와 횟수를 입력하고 이전 기록을 함께 보는 세션 기록 화면" width="180" /> | <img src="./.github/assets/screenshot-history.jpeg" alt="완료한 운동 기록을 날짜별로 보는 기록 조회 화면" width="180" /> | <img src="./.github/assets/screenshot-settings.jpeg" alt="테마 선택과 Notion 연동 메뉴가 있는 설정 메뉴" width="180" /> |
-| 부위별 탭에서 운동을 고릅니다. | 세트별 무게·횟수를 입력하고 이전 기록을 함께 봅니다. | 완료한 기록을 날짜별로 확인합니다. | 테마를 고르고 Notion 연동을 설정합니다. |
+<table>
+  <thead>
+    <tr>
+      <th width="25%" align="center">운동 선택</th>
+      <th width="25%" align="center">세션 기록</th>
+      <th width="25%" align="center">기록 조회</th>
+      <th width="25%" align="center">설정</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td width="25%" align="center" valign="top"><img src="./.github/assets/screenshot-exercise-select.jpeg" alt="부위별 탭에서 운동을 고르는 운동 선택 화면" width="180" /></td>
+      <td width="25%" align="center" valign="top"><img src="./.github/assets/screenshot-session.jpeg" alt="세트별 무게와 횟수를 입력하고 이전 기록을 함께 보는 세션 기록 화면" width="180" /></td>
+      <td width="25%" align="center" valign="top"><img src="./.github/assets/screenshot-history.jpeg" alt="완료한 운동 기록을 날짜별로 보는 기록 조회 화면" width="180" /></td>
+      <td width="25%" align="center" valign="top"><img src="./.github/assets/screenshot-settings.jpeg" alt="테마 선택과 Notion 연동 메뉴가 있는 설정 메뉴" width="180" /></td>
+    </tr>
+    <tr>
+      <td width="25%" align="center" valign="top">부위별 탭에서 운동을 고릅니다.</td>
+      <td width="25%" align="center" valign="top">세트별 무게·횟수를 입력하고 이전 기록을 함께 봅니다.</td>
+      <td width="25%" align="center" valign="top">완료한 기록을 날짜별로 확인합니다.</td>
+      <td width="25%" align="center" valign="top">테마를 고르고 Notion 연동을 설정합니다.</td>
+    </tr>
+  </tbody>
+</table>
 
 ## 1. 프로젝트 소개
 
