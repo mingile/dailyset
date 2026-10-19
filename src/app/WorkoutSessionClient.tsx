@@ -661,15 +661,21 @@ function InlineNumberField({
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const cancelledRef = useRef(false);
+  const scrollYBeforeEditRef = useRef(0);
 
   function beginEdit() {
     cancelledRef.current = false;
+    // 포커스가 가면 모바일 브라우저가 키패드에 맞춰 화면을 스크롤한다. 입력을 마치면 이 위치로 돌려놓는다.
+    scrollYBeforeEditRef.current = window.scrollY;
     setDraft(value);
     setIsEditing(true);
   }
 
   function commitEdit() {
     setIsEditing(false);
+    // 키패드가 닫히며 브라우저가 스크롤을 만지는 것이 끝난 뒤 복귀하도록 다음 프레임에 맡긴다.
+    const top = scrollYBeforeEditRef.current;
+    window.requestAnimationFrame(() => window.scrollTo({ top }));
     if (cancelledRef.current) return;
     if (draft.trim() === value) return;
     onCommit(draft);

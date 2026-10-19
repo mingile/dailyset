@@ -414,6 +414,75 @@ describe("WorkoutSessionClient — 운동 완료 표시", () => {
   });
 });
 
+describe("WorkoutSessionClient — 숫자 입력 후 스크롤 복귀", () => {
+  // 입력칸에 포커스가 가면 모바일 브라우저가 키패드에 맞춰 화면을 스크롤한다.
+  // 입력을 마치면 입력을 시작하기 전 스크롤 위치로 돌려놓는다.
+  let scrollToSpy: ReturnType<typeof vi.spyOn>;
+
+  function setScrollY(y: number) {
+    Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+  }
+
+  beforeEach(() => {
+    setScrollY(0);
+    scrollToSpy = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, "scrollY");
+  });
+
+  it("입력하는 동안에는 스크롤을 건드리지 않는다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+
+    const input = await startEditing(user, "현재 세트 무게");
+    await user.clear(input);
+    await user.type(input, "70");
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+  });
+
+  it("Enter로 입력을 마치면 입력을 시작하기 전 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+    const input = await startEditing(user, "현재 세트 무게");
+    // 키패드가 열리면서 브라우저가 화면을 밀어 올린 상황
+    setScrollY(540);
+
+    await user.type(input, "70{Enter}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 300 });
+  });
+
+  it("Esc로 취소해도 원래 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+    const input = await startEditing(user, "현재 세트 횟수");
+    setScrollY(540);
+
+    await user.type(input, "{Escape}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 300 });
+  });
+
+  it("세트 행의 입력칸에서도 원래 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(120);
+    const input = await startEditing(user, "세트 3 횟수");
+    setScrollY(400);
+
+    await user.type(input, "8{Enter}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 120 });
+  });
+});
+
 describe("WorkoutSessionClient — 운동 타이머", () => {
   async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
     for (const n of [1, 2, 3]) {
