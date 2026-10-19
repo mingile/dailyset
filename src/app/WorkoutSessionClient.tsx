@@ -23,7 +23,7 @@ import {
   ExerciseTimers,
 } from "./types";
 import { type ReactNode, useEffect, useState, useRef } from "react";
-import { TrashIcon, Plus, Minus, CheckCircle2, Check } from "lucide-react";
+import { TrashIcon, Plus, Minus, Check } from "lucide-react";
 import { convertInputToKg, ruleDecision } from "@/lib/weightUnit";
 import {
   getPreviousRecord,
@@ -70,6 +70,18 @@ function getCompletedSetCount(exercise: Exercise): number {
 
 function isExerciseCompleted(exercise: Exercise): boolean {
   return exercise.sets.length > 0 && exercise.sets.every((set) => set.done);
+}
+
+function CompletedCheck() {
+  return (
+    <span
+      role="img"
+      aria-label="완료된 운동"
+      className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-(--session-accent) text-(--session-accent-foreground)"
+    >
+      <Check className="size-4" />
+    </span>
+  );
 }
 
 export function WorkoutSessionClient({
@@ -222,7 +234,7 @@ export function WorkoutSessionClient({
             >
               <AccordionItem
                 value={`item-${i}`}
-                className="border-b border-border last:border-b"
+                className={`border-b border-border last:border-b ${completed ? "-mx-2 bg-(--session-accent)/8 px-2" : ""}`}
               >
                 <AccordionTrigger
                   className={`min-w-0 hover:no-underline ${isActive ? "items-start pb-1 pt-5" : "items-center py-4"}`}
@@ -235,30 +247,33 @@ export function WorkoutSessionClient({
                           {String(exercises.length).padStart(2, "0")}
                         </div>
                         <div className="flex items-center gap-2">
+                          {completed && <CompletedCheck />}
                           <span className="break-words text-3xl font-bold leading-tight tracking-tight">
                             {ex.name}
                           </span>
-                          {completed && (
-                            <CheckCircle2 className="h-5 w-5 shrink-0" />
-                          )}
                         </div>
                       </div>
                       <ExerciseElapsedTime timer={exerciseTimers[ex.id]} />
                     </div>
                   ) : (
                     <div className="flex w-full min-w-0 items-center gap-3">
-                      <span className="w-6 shrink-0 text-sm tabular-nums text-muted-foreground">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
+                      {completed ? (
+                        <span
+                          role="img"
+                          aria-label="완료된 운동"
+                          className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-(--session-accent) text-(--session-accent-foreground)"
+                        >
+                          <Check className="size-4" />
+                        </span>
+                      ) : (
+                        <span className="w-6 shrink-0 text-sm tabular-nums text-muted-foreground">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                      )}
                       <span className="h-6 shrink-0 border-l border-border" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-lg font-bold tracking-tight">
-                            {ex.name}
-                          </span>
-                          {completed && (
-                            <CheckCircle2 className="h-4 w-4 shrink-0" />
-                          )}
+                        <div className="truncate text-lg font-bold tracking-tight">
+                          {ex.name}
                         </div>
                         {exerciseSubtitle && (
                           <div className="truncate text-xs text-muted-foreground">

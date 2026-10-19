@@ -345,6 +345,75 @@ describe("WorkoutSessionClient — 세트 조작", () => {
   });
 });
 
+describe("WorkoutSessionClient — 운동 완료 표시", () => {
+  const FILL = "bg-(--session-accent)/8";
+
+  async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
+    for (const n of [1, 2, 3]) {
+      await user.click(
+        screen.getByRole("checkbox", { name: `세트 ${n} 완료` }),
+      );
+    }
+  }
+
+  // 닫힌 행에서는 번호 자리에, 열린 헤더에서는 운동 이름 앞에 붙는 완료 체크
+  function getCheck() {
+    const trigger = screen.getByRole("button", { name: /벤치프레스/ });
+    return within(trigger).queryByRole("img", { name: "완료된 운동" });
+  }
+
+  function getItem() {
+    const item = screen
+      .getByRole("button", { name: /벤치프레스/ })
+      .closest("[data-slot='accordion-item']");
+    if (!(item instanceof HTMLElement))
+      throw new Error("항목을 찾지 못했습니다");
+    return item;
+  }
+
+  it("미완료 운동은 접혀 있든 펼쳐져 있든 체크와 배경이 모두 없다", async () => {
+    const user = await renderOpenedSession();
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+    expect(screen.getByText("01")).toBeInTheDocument();
+  });
+
+  it("닫힌 완료 운동은 번호 대신 체크를 보이고 배경이 칠해진다", async () => {
+    const user = await renderOpenedSession();
+
+    await completeAllSets(user);
+
+    expect(getCheck()).toBeInTheDocument();
+    expect(screen.queryByText("01")).toBeNull();
+    expect(getItem()).toHaveClass(FILL);
+  });
+
+  it("열린 완료 운동은 운동 이름 앞에 체크를 보이고 배경이 유지된다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    expect(getCheck()).toBeInTheDocument();
+    expect(getItem()).toHaveClass(FILL);
+  });
+
+  it("완료를 해제하면 체크와 배경이 모두 사라진다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    await user.click(screen.getByRole("checkbox", { name: "세트 3 완료" }));
+
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+  });
+});
+
 describe("WorkoutSessionClient — 운동 타이머", () => {
   async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
     for (const n of [1, 2, 3]) {
