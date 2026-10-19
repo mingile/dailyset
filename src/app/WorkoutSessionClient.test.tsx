@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,11 +62,13 @@ function Harness({
   saving = false,
   hideSessionActions = false,
   withAddExerciseSlot = true,
+  enableSwipeHint = false,
 }: {
   onCompleteWorkout?: () => void;
   saving?: boolean;
   hideSessionActions?: boolean;
   withAddExerciseSlot?: boolean;
+  enableSwipeHint?: boolean;
 }) {
   const { exercises, actions } = useSessionExercises(makeExercises());
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
@@ -81,6 +90,7 @@ function Harness({
           ) : undefined
         }
         hideSessionActions={hideSessionActions}
+        enableSwipeHint={enableSwipeHint}
       />
       <output data-testid="exercise-timers">
         {JSON.stringify(exerciseTimers)}
@@ -480,6 +490,135 @@ describe("WorkoutSessionClient — 숫자 입력 후 스크롤 복귀", () => {
     await user.type(input, "8{Enter}");
 
     expect(scrollToSpy).toHaveBeenCalledWith({ top: 120 });
+  });
+});
+
+describe("WorkoutSessionClient — 스와이프 삭제 안내", () => {
+  const HINT_TEXT = "왼쪽으로 밀어서 세트를 삭제할 수 있어요";
+  const DISMISS_KEY = "workout.swipeHint.dismissed.v1";
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function getContent(setNumber: number) {
+    const row = screen
+      .getByRole("checkbox", { name: `세트 ${setNumber} 완료` })
+      .closest("div.overflow-hidden");
+    const content = row?.querySelector("[style*='transform']");
+    if (!(content instanceof HTMLElement))
+      throw new Error("내용을 찾지 못했습니다");
+    return content;
+  }
+
+  it("저장 데이터가 없는 최초 사용자가 운동을 펼치면 안내가 한 번만 보인다", async () => {
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.getAllByText(HINT_TEXT)).toHaveLength(1);
+  });
+
+  it("운동을 펼치기 전에는 안내가 보이지 않는다", () => {
+    render(<Harness enableSwipeHint />);
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("안내를 켜지 않은 화면(랜딩 데모 등)에는 보이지 않는다", async () => {
+    await renderOpenedSession();
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("완료한 세션 기록이 있으면 보이지 않는다", async () => {
+    localStorage.setItem("workout.sessions.v1", JSON.stringify([{ id: "s1" }]));
+
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("이미 확인한 사용자에게는 보이지 않는다", async () => {
+    localStorage.setItem(DISMISS_KEY, "true");
+
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("닫기를 누르면 사라지고 다시 렌더해도 보이지 않는다", async () => {
+    const user = await renderOpenedSession({ enableSwipeHint: true });
+
+    await user.click(
+      screen.getByRole("button", { name: "스와이프 안내 닫기" }),
+    );
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+    expect(localStorage.getItem(DISMISS_KEY)).toBe("true");
+
+    cleanup();
+    await renderOpenedSession({ enableSwipeHint: true });
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("실제로 스와이프해서 삭제 확인 창을 띄우면 안내가 사라진다", async () => {
+    await renderOpenedSession({ enableSwipeHint: true });
+    const row = screen
+      .getByRole("checkbox", { name: "세트 2 완료" })
+      .closest("div.overflow-hidden") as HTMLElement;
+
+    fireEvent.touchStart(row, { touches: [{ clientX: 200 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 100 }] });
+    fireEvent.touchEnd(row);
+
+    await screen.findByRole("alertdialog");
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+    expect(localStorage.getItem(DISMISS_KEY)).toBe("true");
+  });
+
+  it("첫 세트 행이 살짝 밀렸다가 제자리로 돌아온다", () => {
+    vi.useFakeTimers();
+    render(<Harness enableSwipeHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(getContent(1).style.transform).toBe("translateX(-48px)");
+    expect(getContent(2).style.transform).toBe("translateX(0px)");
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+  });
+
+  it("움직임 줄이기 설정이면 행은 움직이지 않고 문구만 보인다", () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    render(<Harness enableSwipeHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+    expect(screen.getByText(HINT_TEXT)).toBeInTheDocument();
   });
 });
 

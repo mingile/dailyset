@@ -37,6 +37,53 @@ test.describe("Workout session draft", () => {
   });
 });
 
+test.describe("Swipe delete hint", () => {
+  const HINT = "왼쪽으로 밀어서 세트를 삭제할 수 있어요";
+
+  test("shows once to a first-time user and stays dismissed after reload", async ({
+    page,
+  }) => {
+    await openLibrarySession(page);
+
+    await page.getByRole("button", { name: /랫풀다운/ }).click();
+    await expect(page.getByText(HINT)).toBeVisible();
+
+    await page.getByRole("button", { name: "스와이프 안내 닫기" }).click();
+    await expect(page.getByText(HINT)).toHaveCount(0);
+
+    await page.reload();
+    await page.getByRole("button", { name: /랫풀다운/ }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "세트 1 완료" }),
+    ).toBeVisible();
+    await expect(page.getByText(HINT)).toHaveCount(0);
+  });
+
+  test("is not shown when the user already has saved workouts", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "workout.sessions.v1",
+        JSON.stringify([
+          {
+            id: "sess_saved",
+            savedAt: "2026-10-01T00:00:00.000Z",
+            exercises: [],
+          },
+        ]),
+      );
+    });
+    await openLibrarySession(page);
+
+    await page.getByRole("button", { name: /랫풀다운/ }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "세트 1 완료" }),
+    ).toBeVisible();
+    await expect(page.getByText(HINT)).toHaveCount(0);
+  });
+});
+
 test.describe("Notion failure handling", () => {
   test("keeps local history and returns to library when sync enqueue fails", async ({
     page,

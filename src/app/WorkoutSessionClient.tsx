@@ -22,7 +22,14 @@ import {
   Session,
   ExerciseTimers,
 } from "./types";
-import { type ReactNode, useEffect, useState, useRef } from "react";
+import {
+  Fragment,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
 import { TrashIcon, Plus, Minus, Check } from "lucide-react";
 import { convertInputToKg, ruleDecision } from "@/lib/weightUnit";
 import {
@@ -33,6 +40,7 @@ import {
 } from "@/lib/previous-record";
 import type { SessionExercisesActions } from "@/hooks/useSessionExercises";
 import { switchActiveExerciseTimer } from "@/lib/timer";
+import { dismissSwipeHint, shouldShowSwipeHint } from "@/lib/swipe-hint";
 import { EYEBROW } from "@/components/app/eyebrow";
 import { PerfProfiler } from "@/components/perf-profiler";
 import { ExerciseElapsedTime } from "./ExerciseElapsedTime";
@@ -56,6 +64,10 @@ const EQUIPMENT_LABELS: Record<string, string> = {
 };
 
 const SET_ROW_GRID = "grid-cols-[2.75rem_4rem_minmax(0,1fr)_4rem_2.75rem]";
+// 안내용 시범 움직임: 첫 세트 행을 이만큼 밀었다가 되돌린다.
+const SWIPE_HINT_NUDGE_PX = -48;
+const SWIPE_HINT_NUDGE_START_MS = 50;
+const SWIPE_HINT_NUDGE_END_MS = 750;
 const PREVIOUS_ROW_GRID = "grid-cols-[3rem_minmax(0,5rem)_3rem_minmax(0,1fr)]";
 
 function parseRepsInput(value: string): number | null {
@@ -95,6 +107,7 @@ export function WorkoutSessionClient({
   saving,
   addExerciseSlot,
   hideSessionActions = false,
+  enableSwipeHint = false,
 }: {
   exercises: Exercises;
   displayWeightUnit: (
@@ -115,6 +128,11 @@ export function WorkoutSessionClient({
    */
   addExerciseSlot?: ReactNode;
   hideSessionActions?: boolean;
+  /**
+   * 저장 데이터가 없는 최초 사용자에게 세트 스와이프 삭제 안내를 보여준다.
+   * 앱 화면만 켠다. 랜딩 데모는 넘기지 않아 안내가 나오지 않는다.
+   */
+  enableSwipeHint?: boolean;
 }) {
   const {
     addSet,
@@ -129,6 +147,8 @@ export function WorkoutSessionClient({
   const [openAccordionIndex, setOpenAccordionIndex] = useState<number | null>(
     null,
   );
+  const [swipeHintVisible, setSwipeHintVisible] = useState(false);
+  const [swipeHintNudged, setSwipeHintNudged] = useState(false);
   const autoCollapsedExercisesRef = useRef<Set<string>>(new Set());
   const prevActiveExerciseIdRef = useRef<string | null>(null);
 
@@ -165,6 +185,18 @@ export function WorkoutSessionClient({
       }
     });
   }, [exercises, openAccordionIndex]);
+
+  // 저장소는 브라우저에서만 읽을 수 있어서 마운트 뒤에 판단한다 (서버 렌더와 어긋나지 않게).
+  useEffect(() => {
+    if (enableSwipeHint && shouldShowSwipeHint()) setSwipeHintVisible(true);
+  }, [enableSwipeHint]);
+
+  const markSwipeHintNudged = useCallback(() => setSwipeHintNudged(true), []);
+
+  function dismissSwipeHintUi() {
+    setSwipeHintVisible(false);
+    dismissSwipeHint();
+  }
 
   function changeSetTotal(exIdx: number, ex: Exercise, draft: string) {
     const nextTotal = parseRepsInput(draft);
@@ -469,25 +501,36 @@ export function WorkoutSessionClient({
                     </div>
                     <div className="border-t border-border">
                       {ex.sets.map((set, j) => (
-                        <PerfProfiler
-                          key={`${ex.id}-set-${j}`}
-                          id={`Row:${i}:${j}`}
-                        >
-                          <Row
-                            exerciseIndex={i}
-                            setIndex={j}
-                            weight={set.weight}
-                            reps={set.reps}
-                            memo={set.memo || ""}
-                            done={set.done}
-                            setType={set.setType || "main"}
-                            isCurrent={!allSetsDone && j === currentSetIdx}
-                            exId={ex.id}
-                            actions={actions}
-                            displayWeightUnit={displayWeightUnit}
-                            unit={set.unit}
-                          />
-                        </PerfProfiler>
+                        <Fragment key={`${ex.id}-set-${j}`}>
+                          <PerfProfiler id={`Row:${i}:${j}`}>
+                            <Row
+                              exerciseIndex={i}
+                              setIndex={j}
+                              weight={set.weight}
+                              reps={set.reps}
+                              memo={set.memo || ""}
+                              done={set.done}
+                              setType={set.setType || "main"}
+                              isCurrent={!allSetsDone && j === currentSetIdx}
+                              exId={ex.id}
+                              actions={actions}
+                              displayWeightUnit={displayWeightUnit}
+                              unit={set.unit}
+                              nudge={
+                                j === 0 && swipeHintVisible && !swipeHintNudged
+                              }
+                              onNudged={markSwipeHintNudged}
+                              onSwipeDelete={
+                                swipeHintVisible
+                                  ? dismissSwipeHintUi
+                                  : undefined
+                              }
+                            />
+                          </PerfProfiler>
+                          {j === 0 && swipeHintVisible && (
+                            <SwipeHint onDismiss={dismissSwipeHintUi} />
+                          )}
+                        </Fragment>
                       ))}
                     </div>
                     <PreviousRecord
@@ -517,6 +560,28 @@ export function WorkoutSessionClient({
         </Button>
       )}
     </main>
+  );
+}
+
+function SwipeHint({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div
+      role="note"
+      className="flex items-center justify-between gap-2 border-b border-border px-3 text-xs text-muted-foreground"
+    >
+      <span className="flex min-w-0 items-center gap-1.5 py-2">
+        <span aria-hidden>←</span>
+        <span>왼쪽으로 밀어서 세트를 삭제할 수 있어요</span>
+      </span>
+      <button
+        type="button"
+        aria-label="스와이프 안내 닫기"
+        className="-my-1 shrink-0 px-2 py-3 underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={onDismiss}
+      >
+        닫기
+      </button>
+    </div>
   );
 }
 
@@ -738,6 +803,9 @@ function Row({
   actions,
   displayWeightUnit,
   unit,
+  nudge = false,
+  onNudged,
+  onSwipeDelete,
 }: {
   exId: string;
   exerciseIndex: number;
@@ -757,12 +825,40 @@ function Row({
     unit: "kg" | "lb",
   ) => { displayWeight: number; displayUnit: "kg" | "lb" };
   unit: "kg" | "lb";
+  /** true면 마운트 직후 행을 살짝 밀었다 돌려 스와이프를 시범 보인다 */
+  nudge?: boolean;
+  /** 시범 움직임이 끝났을 때 (움직임 줄이기 설정이면 바로) */
+  onNudged?: () => void;
+  /** 사용자가 직접 스와이프해서 삭제 확인 창을 띄웠을 때 */
+  onSwipeDelete?: () => void;
 }) {
   const { displayWeight, displayUnit } = displayWeightUnit(weight, unit);
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [isSwiping, setIsSwiping] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
   const setLabel = `세트 ${setIndex + 1}`;
+
+  useEffect(() => {
+    if (!nudge) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onNudged?.();
+      return;
+    }
+
+    const startId = window.setTimeout(
+      () => setSwipeOffset(SWIPE_HINT_NUDGE_PX),
+      SWIPE_HINT_NUDGE_START_MS,
+    );
+    const endId = window.setTimeout(() => {
+      setSwipeOffset(0);
+      onNudged?.();
+    }, SWIPE_HINT_NUDGE_END_MS);
+
+    return () => {
+      window.clearTimeout(startId);
+      window.clearTimeout(endId);
+    };
+  }, [nudge, onNudged]);
 
   function commitWeight(draft: string) {
     const nextKg = convertInputToKg(draft, unit);
@@ -799,6 +895,7 @@ function Row({
   function handleTouchEnd() {
     if (swipeOffset < -50) {
       setIsDeleteDialogOpen(true);
+      onSwipeDelete?.();
     }
     setIsSwiping(false);
     setSwipeOffset(0);
