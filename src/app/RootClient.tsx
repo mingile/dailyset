@@ -882,6 +882,7 @@ export function RootClient() {
               onExerciseTimersChange={setExerciseTimers}
               onCompleteWorkout={handleCompleteWorkout}
               saving={saving}
+              enableSwipeHint
             />
           </PerfProfiler>
         )}

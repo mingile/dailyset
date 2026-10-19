@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -55,33 +62,46 @@ function Harness({
   saving = false,
   hideSessionActions = false,
   withAddExerciseSlot = true,
+  enableSwipeHint = false,
 }: {
   onCompleteWorkout?: () => void;
   saving?: boolean;
   hideSessionActions?: boolean;
   withAddExerciseSlot?: boolean;
+  enableSwipeHint?: boolean;
 }) {
   const { exercises, actions } = useSessionExercises(makeExercises());
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
 
   return (
-    <WorkoutSessionClient
-      exercises={exercises}
-      displayWeightUnit={displayWeightUnit}
-      actions={actions}
-      sessionMetadata={SESSION_METADATA}
-      exerciseTimers={exerciseTimers}
-      onExerciseTimersChange={setExerciseTimers}
-      onCompleteWorkout={onCompleteWorkout}
-      saving={saving}
-      addExerciseSlot={
-        withAddExerciseSlot ? (
-          <button type="button">운동 추가</button>
-        ) : undefined
-      }
-      hideSessionActions={hideSessionActions}
-    />
+    <>
+      <WorkoutSessionClient
+        exercises={exercises}
+        displayWeightUnit={displayWeightUnit}
+        actions={actions}
+        sessionMetadata={SESSION_METADATA}
+        exerciseTimers={exerciseTimers}
+        onExerciseTimersChange={setExerciseTimers}
+        onCompleteWorkout={onCompleteWorkout}
+        saving={saving}
+        addExerciseSlot={
+          withAddExerciseSlot ? (
+            <button type="button">운동 추가</button>
+          ) : undefined
+        }
+        hideSessionActions={hideSessionActions}
+        enableSwipeHint={enableSwipeHint}
+      />
+      <output data-testid="exercise-timers">
+        {JSON.stringify(exerciseTimers)}
+      </output>
+    </>
   );
+}
+
+/** Harness가 노출한 운동 타이머 state를 읽는다 */
+function readTimers(): ExerciseTimers {
+  return JSON.parse(screen.getByTestId("exercise-timers").textContent ?? "{}");
 }
 
 /** 운동을 펼친 상태로 렌더한다 (세트 입력 UI는 펼친 운동 안에 있다) */
@@ -332,6 +352,320 @@ describe("WorkoutSessionClient — 세트 조작", () => {
     expect(
       screen.getByText(/컨디션 좋음/, { selector: "div" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("WorkoutSessionClient — 운동 완료 표시", () => {
+  const FILL = "bg-(--session-accent)/8";
+
+  async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
+    for (const n of [1, 2, 3]) {
+      await user.click(
+        screen.getByRole("checkbox", { name: `세트 ${n} 완료` }),
+      );
+    }
+  }
+
+  // 닫힌 행에서는 번호 자리에, 열린 헤더에서는 운동 이름 앞에 붙는 완료 체크
+  function getCheck() {
+    const trigger = screen.getByRole("button", { name: /벤치프레스/ });
+    return within(trigger).queryByRole("img", { name: "완료된 운동" });
+  }
+
+  function getItem() {
+    const item = screen
+      .getByRole("button", { name: /벤치프레스/ })
+      .closest("[data-slot='accordion-item']");
+    if (!(item instanceof HTMLElement))
+      throw new Error("항목을 찾지 못했습니다");
+    return item;
+  }
+
+  it("미완료 운동은 접혀 있든 펼쳐져 있든 체크와 배경이 모두 없다", async () => {
+    const user = await renderOpenedSession();
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+    expect(screen.getByText("01")).toBeInTheDocument();
+  });
+
+  it("닫힌 완료 운동은 번호 대신 체크를 보이고 배경이 칠해진다", async () => {
+    const user = await renderOpenedSession();
+
+    await completeAllSets(user);
+
+    expect(getCheck()).toBeInTheDocument();
+    expect(screen.queryByText("01")).toBeNull();
+    expect(getItem()).toHaveClass(FILL);
+  });
+
+  it("열린 완료 운동은 운동 이름 앞에 체크를 보이고 배경이 유지된다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    expect(getCheck()).toBeInTheDocument();
+    expect(getItem()).toHaveClass(FILL);
+  });
+
+  it("완료를 해제하면 체크와 배경이 모두 사라진다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    await user.click(screen.getByRole("checkbox", { name: "세트 3 완료" }));
+
+    expect(getCheck()).toBeNull();
+    expect(getItem()).not.toHaveClass(FILL);
+  });
+});
+
+describe("WorkoutSessionClient — 숫자 입력 후 스크롤 복귀", () => {
+  // 입력칸에 포커스가 가면 모바일 브라우저가 키패드에 맞춰 화면을 스크롤한다.
+  // 입력을 마치면 입력을 시작하기 전 스크롤 위치로 돌려놓는다.
+  let scrollToSpy: ReturnType<typeof vi.spyOn>;
+
+  function setScrollY(y: number) {
+    Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+  }
+
+  beforeEach(() => {
+    setScrollY(0);
+    scrollToSpy = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, "scrollY");
+  });
+
+  it("입력하는 동안에는 스크롤을 건드리지 않는다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+
+    const input = await startEditing(user, "현재 세트 무게");
+    await user.clear(input);
+    await user.type(input, "70");
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+  });
+
+  it("Enter로 입력을 마치면 입력을 시작하기 전 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+    const input = await startEditing(user, "현재 세트 무게");
+    // 키패드가 열리면서 브라우저가 화면을 밀어 올린 상황
+    setScrollY(540);
+
+    await user.type(input, "70{Enter}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 300 });
+  });
+
+  it("Esc로 취소해도 원래 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(300);
+    const input = await startEditing(user, "현재 세트 횟수");
+    setScrollY(540);
+
+    await user.type(input, "{Escape}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 300 });
+  });
+
+  it("세트 행의 입력칸에서도 원래 위치로 돌아간다", async () => {
+    const user = await renderOpenedSession();
+    setScrollY(120);
+    const input = await startEditing(user, "세트 3 횟수");
+    setScrollY(400);
+
+    await user.type(input, "8{Enter}");
+
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 120 });
+  });
+});
+
+describe("WorkoutSessionClient — 스와이프 삭제 안내", () => {
+  const HINT_TEXT = "왼쪽으로 밀어서 세트를 삭제할 수 있어요";
+  const DISMISS_KEY = "workout.swipeHint.dismissed.v1";
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+  afterEach(() => {
+    localStorage.clear();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function getContent(setNumber: number) {
+    const row = screen
+      .getByRole("checkbox", { name: `세트 ${setNumber} 완료` })
+      .closest("div.overflow-hidden");
+    const content = row?.querySelector("[style*='transform']");
+    if (!(content instanceof HTMLElement))
+      throw new Error("내용을 찾지 못했습니다");
+    return content;
+  }
+
+  it("저장 데이터가 없는 최초 사용자가 운동을 펼치면 안내가 한 번만 보인다", async () => {
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.getAllByText(HINT_TEXT)).toHaveLength(1);
+  });
+
+  it("운동을 펼치기 전에는 안내가 보이지 않는다", () => {
+    render(<Harness enableSwipeHint />);
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("안내를 켜지 않은 화면(랜딩 데모 등)에는 보이지 않는다", async () => {
+    await renderOpenedSession();
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("완료한 세션 기록이 있으면 보이지 않는다", async () => {
+    localStorage.setItem("workout.sessions.v1", JSON.stringify([{ id: "s1" }]));
+
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("이미 확인한 사용자에게는 보이지 않는다", async () => {
+    localStorage.setItem(DISMISS_KEY, "true");
+
+    await renderOpenedSession({ enableSwipeHint: true });
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("닫기를 누르면 사라지고 다시 렌더해도 보이지 않는다", async () => {
+    const user = await renderOpenedSession({ enableSwipeHint: true });
+
+    await user.click(
+      screen.getByRole("button", { name: "스와이프 안내 닫기" }),
+    );
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+    expect(localStorage.getItem(DISMISS_KEY)).toBe("true");
+
+    cleanup();
+    await renderOpenedSession({ enableSwipeHint: true });
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+  });
+
+  it("실제로 스와이프해서 삭제 확인 창을 띄우면 안내가 사라진다", async () => {
+    await renderOpenedSession({ enableSwipeHint: true });
+    const row = screen
+      .getByRole("checkbox", { name: "세트 2 완료" })
+      .closest("div.overflow-hidden") as HTMLElement;
+
+    fireEvent.touchStart(row, { touches: [{ clientX: 200 }] });
+    fireEvent.touchMove(row, { touches: [{ clientX: 100 }] });
+    fireEvent.touchEnd(row);
+
+    await screen.findByRole("alertdialog");
+    expect(screen.queryByText(HINT_TEXT)).toBeNull();
+    expect(localStorage.getItem(DISMISS_KEY)).toBe("true");
+  });
+
+  it("첫 세트 행이 살짝 밀렸다가 제자리로 돌아온다", () => {
+    vi.useFakeTimers();
+    render(<Harness enableSwipeHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(getContent(1).style.transform).toBe("translateX(-48px)");
+    expect(getContent(2).style.transform).toBe("translateX(0px)");
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+  });
+
+  it("움직임 줄이기 설정이면 행은 움직이지 않고 문구만 보인다", () => {
+    vi.useFakeTimers();
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    render(<Harness enableSwipeHint />);
+
+    fireEvent.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(getContent(1).style.transform).toBe("translateX(0px)");
+    expect(screen.getByText(HINT_TEXT)).toBeInTheDocument();
+  });
+});
+
+describe("WorkoutSessionClient — 운동 타이머", () => {
+  async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
+    for (const n of [1, 2, 3]) {
+      await user.click(
+        screen.getByRole("checkbox", { name: `세트 ${n} 완료` }),
+      );
+    }
+  }
+
+  it("운동을 펼치면 타이머가 running으로 시작한다", async () => {
+    await renderOpenedSession();
+
+    expect(readTimers()["ex-bench"]?.status).toBe("running");
+  });
+
+  it("모든 세트를 완료하면 타이머가 멈춘다", async () => {
+    const user = await renderOpenedSession();
+
+    await completeAllSets(user);
+
+    expect(readTimers()["ex-bench"]?.status).toBe("paused");
+  });
+
+  it("완료된 운동을 다시 펼쳐도 타이머가 재개되지 않는다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    const before = readTimers()["ex-bench"];
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "세트 1 완료" }),
+    ).toBeInTheDocument();
+    expect(readTimers()["ex-bench"]).toEqual(before);
+  });
+
+  it("완료를 해제하면 타이머가 다시 이어진다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    await user.click(screen.getByRole("checkbox", { name: "세트 3 완료" }));
+
+    expect(readTimers()["ex-bench"]?.status).toBe("running");
   });
 });
 
