@@ -120,10 +120,12 @@ export function WorkoutSessionClient({
   const autoCollapsedExercisesRef = useRef<Set<string>>(new Set());
   const prevActiveExerciseIdRef = useRef<string | null>(null);
 
+  // 타이머는 펼쳐져 있고 아직 끝나지 않은 운동만 흐른다. 완료된 운동은 다시 펼쳐도 재개하지 않고,
+  // 완료를 해제하면 이 값이 다시 그 운동의 id가 되어 이어서 흐른다.
+  const openExercise =
+    openAccordionIndex === null ? undefined : exercises[openAccordionIndex];
   const activeExerciseId =
-    openAccordionIndex === null
-      ? null
-      : (exercises[openAccordionIndex]?.id ?? null);
+    openExercise && !isExerciseCompleted(openExercise) ? openExercise.id : null;
 
   useEffect(() => {
     const prevActiveExerciseId = prevActiveExerciseIdRef.current;

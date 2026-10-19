@@ -65,23 +65,33 @@ function Harness({
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
 
   return (
-    <WorkoutSessionClient
-      exercises={exercises}
-      displayWeightUnit={displayWeightUnit}
-      actions={actions}
-      sessionMetadata={SESSION_METADATA}
-      exerciseTimers={exerciseTimers}
-      onExerciseTimersChange={setExerciseTimers}
-      onCompleteWorkout={onCompleteWorkout}
-      saving={saving}
-      addExerciseSlot={
-        withAddExerciseSlot ? (
-          <button type="button">운동 추가</button>
-        ) : undefined
-      }
-      hideSessionActions={hideSessionActions}
-    />
+    <>
+      <WorkoutSessionClient
+        exercises={exercises}
+        displayWeightUnit={displayWeightUnit}
+        actions={actions}
+        sessionMetadata={SESSION_METADATA}
+        exerciseTimers={exerciseTimers}
+        onExerciseTimersChange={setExerciseTimers}
+        onCompleteWorkout={onCompleteWorkout}
+        saving={saving}
+        addExerciseSlot={
+          withAddExerciseSlot ? (
+            <button type="button">운동 추가</button>
+          ) : undefined
+        }
+        hideSessionActions={hideSessionActions}
+      />
+      <output data-testid="exercise-timers">
+        {JSON.stringify(exerciseTimers)}
+      </output>
+    </>
   );
+}
+
+/** Harness가 노출한 운동 타이머 state를 읽는다 */
+function readTimers(): ExerciseTimers {
+  return JSON.parse(screen.getByTestId("exercise-timers").textContent ?? "{}");
 }
 
 /** 운동을 펼친 상태로 렌더한다 (세트 입력 UI는 펼친 운동 안에 있다) */
@@ -332,6 +342,53 @@ describe("WorkoutSessionClient — 세트 조작", () => {
     expect(
       screen.getByText(/컨디션 좋음/, { selector: "div" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("WorkoutSessionClient — 운동 타이머", () => {
+  async function completeAllSets(user: ReturnType<typeof userEvent.setup>) {
+    for (const n of [1, 2, 3]) {
+      await user.click(
+        screen.getByRole("checkbox", { name: `세트 ${n} 완료` }),
+      );
+    }
+  }
+
+  it("운동을 펼치면 타이머가 running으로 시작한다", async () => {
+    await renderOpenedSession();
+
+    expect(readTimers()["ex-bench"]?.status).toBe("running");
+  });
+
+  it("모든 세트를 완료하면 타이머가 멈춘다", async () => {
+    const user = await renderOpenedSession();
+
+    await completeAllSets(user);
+
+    expect(readTimers()["ex-bench"]?.status).toBe("paused");
+  });
+
+  it("완료된 운동을 다시 펼쳐도 타이머가 재개되지 않는다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    const before = readTimers()["ex-bench"];
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "세트 1 완료" }),
+    ).toBeInTheDocument();
+    expect(readTimers()["ex-bench"]).toEqual(before);
+  });
+
+  it("완료를 해제하면 타이머가 다시 이어진다", async () => {
+    const user = await renderOpenedSession();
+    await completeAllSets(user);
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+
+    await user.click(screen.getByRole("checkbox", { name: "세트 3 완료" }));
+
+    expect(readTimers()["ex-bench"]?.status).toBe("running");
   });
 });
 
