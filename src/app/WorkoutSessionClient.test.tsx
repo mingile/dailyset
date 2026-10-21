@@ -28,24 +28,22 @@ const SESSION_METADATA: SessionMetadata = {
   startedAt: "2026-10-13T00:00:00.000Z",
 };
 
-function makeExercises(): Exercises {
-  return [
-    {
-      id: "ex-bench",
-      name: "벤치프레스",
-      part: "가슴",
-      sets: [1, 2, 3].map(() => ({
-        weight: 60,
-        reps: 10,
-        done: false,
-        synced: false,
-        equipment: "barbell",
-        memo: "",
-        unit: "kg" as const,
-        setType: "main" as const,
-      })),
-    },
-  ];
+function makeExercises(count = 1): Exercises {
+  return Array.from({ length: count }, (_, index) => ({
+    id: index === 0 ? "ex-bench" : `ex-extra-${index}`,
+    name: index === 0 ? "벤치프레스" : `추가 운동 ${index}`,
+    part: "가슴",
+    sets: [1, 2, 3].map(() => ({
+      weight: 60,
+      reps: 10,
+      done: false,
+      synced: false,
+      equipment: "barbell",
+      memo: "",
+      unit: "kg" as const,
+      setType: "main" as const,
+    })),
+  }));
 }
 
 function displayWeightUnit(weight: number, unit: "kg" | "lb") {
@@ -63,14 +61,18 @@ function Harness({
   hideSessionActions = false,
   withAddExerciseSlot = true,
   enableSwipeHint = false,
+  exerciseCount = 1,
 }: {
   onCompleteWorkout?: () => void;
   saving?: boolean;
   hideSessionActions?: boolean;
   withAddExerciseSlot?: boolean;
   enableSwipeHint?: boolean;
+  exerciseCount?: number;
 }) {
-  const { exercises, actions } = useSessionExercises(makeExercises());
+  const { exercises, actions } = useSessionExercises(
+    makeExercises(exerciseCount),
+  );
   const [exerciseTimers, setExerciseTimers] = useState<ExerciseTimers>({});
 
   return (
@@ -490,6 +492,92 @@ describe("WorkoutSessionClient — 숫자 입력 후 스크롤 복귀", () => {
     await user.type(input, "8{Enter}");
 
     expect(scrollToSpy).toHaveBeenCalledWith({ top: 120 });
+  });
+});
+
+describe("WorkoutSessionClient — 운동을 펼칠 때 스크롤 이동", () => {
+  // 펼친 운동은 화면에서 목록 맨 위로 올라간다. 아래쪽 행을 펼쳤을 때 그 운동이 화면 밖에 남지 않아야 한다.
+  const HEADER_HEIGHT = 56;
+  let scrollToSpy: ReturnType<typeof vi.spyOn>;
+  let pendingFrames: FrameRequestCallback[];
+
+  function setScrollY(y: number) {
+    Object.defineProperty(window, "scrollY", { value: y, configurable: true });
+  }
+
+  /** 클릭으로 목록이 다시 그려진 뒤에 도는 다음 프레임을 실행한다 */
+  function runNextFrames() {
+    act(() => {
+      for (const frame of pendingFrames.splice(0)) frame(0);
+    });
+  }
+
+  /** 펼쳐진 운동 항목의 화면 상단 좌표를 정한다 (jsdom은 레이아웃이 없다) */
+  function placeOpenItemAt(top: number) {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        const isOpenItem =
+          this.dataset.slot === "accordion-item" &&
+          this.dataset.state === "open";
+        return { top: isOpenItem ? top : 0 } as DOMRect;
+      },
+    );
+  }
+
+  beforeEach(() => {
+    setScrollY(0);
+    scrollToSpy = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    pendingFrames = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      pendingFrames.push(cb);
+      return pendingFrames.length;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(window, "scrollY");
+  });
+
+  it("펼친 운동이 화면 위로 벗어나 있으면 헤더 아래 위치로 스크롤한다", async () => {
+    const user = userEvent.setup();
+    render(<Harness exerciseCount={5} />);
+    setScrollY(500);
+    placeOpenItemAt(-200);
+
+    await user.click(screen.getByRole("button", { name: /추가 운동 4/ }));
+    runNextFrames();
+
+    expect(scrollToSpy).toHaveBeenCalledWith({
+      top: 500 - 200 - HEADER_HEIGHT,
+    });
+  });
+
+  it("펼친 운동이 이미 보이는 위치면 스크롤하지 않는다", async () => {
+    const user = userEvent.setup();
+    render(<Harness exerciseCount={5} />);
+    setScrollY(500);
+    placeOpenItemAt(120);
+
+    await user.click(screen.getByRole("button", { name: /추가 운동 4/ }));
+    runNextFrames();
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+  });
+
+  it("운동을 접을 때는 스크롤하지 않는다", async () => {
+    const user = userEvent.setup();
+    render(<Harness exerciseCount={5} />);
+    placeOpenItemAt(120);
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    runNextFrames();
+    scrollToSpy.mockClear();
+    placeOpenItemAt(-200);
+
+    await user.click(screen.getByRole("button", { name: /벤치프레스/ }));
+    runNextFrames();
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
   });
 });
 
