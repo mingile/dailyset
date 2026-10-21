@@ -55,6 +55,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// 앱 상단에 붙어 있는 헤더(HeaderControls의 min-h-14) 높이. 펼친 운동이 이 아래에 보이도록 맞춘다.
+const STICKY_HEADER_HEIGHT = 56;
+
 const EQUIPMENT_LABELS: Record<string, string> = {
   "cable-machine": "케이블 머신",
   "smith-machine": "스미스 머신",
@@ -151,6 +154,7 @@ export function WorkoutSessionClient({
   const [swipeHintNudged, setSwipeHintNudged] = useState(false);
   const autoCollapsedExercisesRef = useRef<Set<string>>(new Set());
   const prevActiveExerciseIdRef = useRef<string | null>(null);
+  const openItemRef = useRef<HTMLDivElement>(null);
 
   // 타이머는 펼쳐져 있고 아직 끝나지 않은 운동만 흐른다. 완료된 운동은 다시 펼쳐도 재개하지 않고,
   // 완료를 해제하면 이 값이 다시 그 운동의 id가 되어 이어서 흐른다.
@@ -196,6 +200,20 @@ export function WorkoutSessionClient({
   function dismissSwipeHintUi() {
     setSwipeHintVisible(false);
     dismissSwipeHint();
+  }
+
+  // 펼친 운동은 목록 맨 위로 올라가는데 스크롤 위치는 그대로라, 아래쪽 행을 펼치면 그 운동이 화면 위로 벗어난다.
+  // 헤더에 가려졌거나 화면 위로 벗어났을 때만 보이는 위치로 옮긴다. (이미 보이면 건드리지 않는다)
+  function scrollOpenExerciseIntoView() {
+    const top = openItemRef.current?.getBoundingClientRect().top;
+    if (top === undefined || top >= STICKY_HEADER_HEIGHT) return;
+    window.scrollTo({ top: window.scrollY + top - STICKY_HEADER_HEIGHT });
+  }
+
+  function toggleExercise(index: number, open: boolean) {
+    setOpenAccordionIndex(open ? index : null);
+    // 목록이 다시 그려져 펼친 운동이 맨 위로 올라간 뒤에 위치를 잡도록 다음 프레임에 맡긴다.
+    if (open) window.requestAnimationFrame(scrollOpenExerciseIntoView);
   }
 
   function changeSetTotal(exIdx: number, ex: Exercise, draft: string) {
@@ -260,11 +278,10 @@ export function WorkoutSessionClient({
               type="single"
               collapsible
               value={isActive ? `item-${i}` : ""}
-              onValueChange={(val) =>
-                setOpenAccordionIndex(val === `item-${i}` ? i : null)
-              }
+              onValueChange={(val) => toggleExercise(i, val === `item-${i}`)}
             >
               <AccordionItem
+                ref={isActive ? openItemRef : undefined}
                 value={`item-${i}`}
                 className={`border-b border-border last:border-b ${completed ? "-mx-2 bg-(--session-accent)/8 px-2" : ""}`}
               >
